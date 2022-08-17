@@ -495,7 +495,7 @@ m1_bag <- train(medv ~ ., data = train_B,
                 trControl = ctrl)
 ```
 
-모형 `m1_bag`의 적합 결과를 확인해 보자. 
+모형 `m1_bag`에 입력된 적합 결과를 확인해 보자. 
 
 ```{r}
 m1_bag
