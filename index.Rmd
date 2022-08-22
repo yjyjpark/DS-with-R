@@ -14,6 +14,22 @@ link-citations: yes
 
 # 소개하기 {.unnumbered}
 
+최근 다양한 분야에서 데이터의 중요성이 재발견되고 있고, 데이터가 품고 있는 정보를 캐내려는 시도가 빈번하게 이루어지고 있다. 
+이러한 이유로 인하여 통계분석이 다양한 분야에서 중요한 화두로 떠오르고 있다.
+
+Statistical learning은 데이터를 이해하려는 통계적인 접근 방법을 의미하는데, 두 가지 방식으로 구분할 수 있다. 
+하나는 Supervised learning으로 한 개 이상의 input(설명변수)을 근거로 하나의 output(반응변수) 예측을 위한 모형 수립과 관련된 방법을 의미한다. 
+다른 하나는 Unsupervised learning으로 input은 있으나, output이 특정되지 않는 상황에서 데이터 사이의 관계 및 구조 수립과 관련된 방법을 의미한다. 
+
+Supervised learning은 반응변수의 유형에 따라 연속형 반응변수의 경우에 적용되는 regression 모형과 범주형 반응변수의 경우에 적용되는 classification 모형으로 구분할 수 있다. 
+이 책에서는 supervised statistical learning에서 선형회귀모형과 로지스틱 회귀모형, 그리고 tree-based 모형 중 bagging과 random forest, 그리고 boosting에 대한 기본적인 내용을 살펴보고, R을 사용해서 예제 문제를 함께 풀어보도록 하겠다. 
+
+이 책에서는 선형회귀모형 및 로지스틱 회귀모형의 이론적인 내용은 다루고 있지 않다. 
+이론적인 부분을 포함해서 statistical learning에 대한 포괄적인 내용은 [An Introduction to Statistical Learning](https://www.statlearning.com/) 에서 찾아 볼 수 있다.   
+
+R의 기초적인 사용법은 이 책의 예제 문제를 함께 해결하기 위해 반드시 알고 있어야 한다. 
+`dplyr`과 `ggplot2` 등을 포함한 R 사용법에 대한 소개는 [R과 통계분석](https://yjyjpark.github.io/R-and-statistical-analysis) 에서 볼 수 있다. 
+
 
 
 ```{r include=FALSE}

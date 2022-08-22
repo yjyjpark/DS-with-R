@@ -188,8 +188,11 @@ Complete separation이 발생할 수 있는 몇 가지 상황이 있는데,
 변수 `default`가 `"Yes"`인 경우가 매우 드물다는 것을 알 수 있다. 
 또한 `default`가 `"Yes"`와 `"No"`인 그룹에서 `balance`의 분포는 큰 차이를 보이는 반면에 `income`은 거의 비슷한 분포를 갖고 있다.
 
-```{r 2-3, fig.cap="`Default` 자료의 산점도행렬", fig.height=5, fig.width=7}
+```{r}
 data(Default, package = "ISLR")
+```
+
+```{r 2-3, fig.cap="`Default` 자료의 산점도행렬", fig.height=5, fig.width=7}
 Default <- Default %>%
   mutate(income = income/1000)
 GGally::ggpairs(Default, aes(fill = default), showStrips = TRUE)
