@@ -138,7 +138,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <li><a href="./">R에 의한 통계자료분석 실습</a></li>
 
 <li class="divider"></li>
-<li class="chapter" data-level="" data-path="index.html"><a href="index.html"><i class="fa fa-check"></i>소개하기</a></li>
+<li class="chapter" data-level="" data-path="index.html"><a href="index.html"><i class="fa fa-check"></i>머리말</a></li>
 <li class="chapter" data-level="1" data-path="chapter-regression.html"><a href="chapter-regression.html"><i class="fa fa-check"></i><b>1</b> 선형회귀모형</a>
 <ul>
 <li class="chapter" data-level="1.1" data-path="chapter-regression.html"><a href="chapter-regression.html#section-fitting"><i class="fa fa-check"></i><b>1.1</b> 회귀모형 적합</a>
@@ -767,7 +767,7 @@ best subset selection의 경우에는 <code>bestglm::bestglm()</code>를 사용�
 <span id="cb108-6"><a href="chapter-Logistic.html#cb108-6" aria-hidden="true" tabindex="-1"></a><span class="sc">+</span>     )</span></code></pre></div>
 <p>연속형 변수 <code>inc</code>와 <code>lwg</code>의 값에 따라 <code>lfp</code>가 <code>"yes"</code>가 될 확률의 변화를 함께 나타낼 수 있는 그래프에는 Heatmap이 있으며, 함수 <code>geom_raster()</code>로 작성할 수 있다.
 변수 <code>k5</code>의 효과는 faceting으로 나타내 보자.</p>
-<div class="sourceCode" id="cb109"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb109-1"><a href="chapter-Logistic.html#cb109-1" aria-hidden="true" tabindex="-1"></a><span class="sc">&gt;</span> df3 <span class="sc">%&gt;%</span> </span>
+<div class="sourceCode" id="cb109"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb109-1"><a href="chapter-Logistic.html#cb109-1" aria-hidden="true" tabindex="-1"></a><span class="sc">&gt;</span> df3 <span class="sc">|&gt;</span>  </span>
 <span id="cb109-2"><a href="chapter-Logistic.html#cb109-2" aria-hidden="true" tabindex="-1"></a><span class="sc">+</span>     <span class="fu">mutate</span>(<span class="at">p3 =</span> <span class="fu">predict</span>(fit1, <span class="at">newdata =</span> df3, </span>
 <span id="cb109-3"><a href="chapter-Logistic.html#cb109-3" aria-hidden="true" tabindex="-1"></a><span class="sc">+</span>                         <span class="at">type =</span> <span class="st">&quot;response&quot;</span>)) <span class="sc">%&gt;%</span> </span>
 <span id="cb109-4"><a href="chapter-Logistic.html#cb109-4" aria-hidden="true" tabindex="-1"></a><span class="sc">+</span>     <span class="fu">ggplot</span>() <span class="sc">+</span></span>
