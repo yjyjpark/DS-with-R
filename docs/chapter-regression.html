@@ -6,7 +6,7 @@
   <meta http-equiv="X-UA-Compatible" content="IE=edge" />
   <title>1 장 선형회귀모형 | R에 의한 통계자료분석 실습</title>
   <meta name="description" content="한신대학교 응용통계학과 전공 과목 통계자료분석실습의 교재입니다." />
-  <meta name="generator" content="bookdown 0.26 and GitBook 2.6.7" />
+  <meta name="generator" content="bookdown 0.29 and GitBook 2.6.7" />
 
   <meta property="og:title" content="1 장 선형회귀모형 | R에 의한 통계자료분석 실습" />
   <meta property="og:type" content="book" />
@@ -23,7 +23,7 @@
 <meta name="author" content="박동련" />
 
 
-<meta name="date" content="2022-08-22" />
+<meta name="date" content="2022-10-28" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -320,8 +320,7 @@ RSS = \sum_{i=1}^{n} \left(y_{i} - \hat{\beta}_{0} - \hat{\beta}_{1}x_{1i} - \ld
 <span id="cb2-9"><a href="chapter-regression.html#cb2-9" aria-hidden="true" tabindex="-1"></a><span class="dv">1</span>       <span class="dv">3615</span>   <span class="dv">3624</span>        <span class="fl">2.1</span>     <span class="fl">69.0</span>    <span class="fl">41.3</span>    <span class="dv">20</span>  <span class="dv">50708</span>   <span class="fl">15.1</span></span>
 <span id="cb2-10"><a href="chapter-regression.html#cb2-10" aria-hidden="true" tabindex="-1"></a><span class="dv">2</span>        <span class="dv">365</span>   <span class="dv">6315</span>        <span class="fl">1.5</span>     <span class="fl">69.3</span>    <span class="fl">66.7</span>   <span class="dv">152</span> <span class="dv">566432</span>   <span class="fl">11.3</span></span>
 <span id="cb2-11"><a href="chapter-regression.html#cb2-11" aria-hidden="true" tabindex="-1"></a><span class="dv">3</span>       <span class="dv">2212</span>   <span class="dv">4530</span>        <span class="fl">1.8</span>     <span class="fl">70.6</span>    <span class="fl">58.1</span>    <span class="dv">15</span> <span class="dv">113417</span>    <span class="fl">7.8</span></span>
-<span id="cb2-12"><a href="chapter-regression.html#cb2-12" aria-hidden="true" tabindex="-1"></a><span class="co"># … with 47 more rows</span></span>
-<span id="cb2-13"><a href="chapter-regression.html#cb2-13" aria-hidden="true" tabindex="-1"></a><span class="co"># ℹ Use `print(n = ...)` to see more rows</span></span></code></pre></div>
+<span id="cb2-12"><a href="chapter-regression.html#cb2-12" aria-hidden="true" tabindex="-1"></a><span class="co"># … with 47 more rows</span></span></code></pre></div>
 <p>행렬을 tibble로 전환시켰기 때문에 각 주의 이름이 입력된 row name이 삭제되었는데, 만일 row name를 그대로 유지하고자 한다면 함수 <code>as_tibble()</code> 대신 <code>as.data.frame()</code>을 사용하면 된다. 반응변수의 위치를 마지막으로 이동시킨 이유는 산점도 행렬을 작성하고 결과를 해석할 때 더 편리하기 때문이다.</p>
 <p>다중회귀모형에 의한 분석을 진행하기 전에 반드시 거쳐야 할 단계가 있는데, 그것은 모형에 포함될 변수들의 관계를 탐색하는 것이다. 변수들 사이의 관계 탐색에 많이 사용되는 방법은 상관계수와 산점도행렬이다. 산점도행렬과 같은 그래프에 의한 탐색은 필수적이라 할 수 있으며, 연속형 변수의 경우에는 두 변수끼리 짝을 지어 상관계수를 살펴보는 것도 필요하다.</p>
 <p>상관계수는 변수들 사이의 선형관계 정도를 확인할 때 사용할 수 있는데, 함수 <code>cor()</code>로 계산할 수 있다. 사용법은 <code>cor(x, y = NULL, use = "everything", method = c("pearson", "kendall", "spearman"))</code>이다. <code>x</code>와 <code>y</code> 모두 벡터, 행렬 혹은 데이터 프레임이 가능한데, <code>x</code>만 주어지면 <code>x</code>에 포함된 모든 변수들 사이의 상관계수를 계산하게 되고, <code>y</code>도 주어지면 <code>x</code>에 속한 변수와 <code>y</code>에 속한 변수들을 하나씩 짝을 지어 상관계수를 계산하게 된다.</p>
@@ -1539,7 +1538,7 @@ gitbook.start({
     var script = document.createElement("script");
     script.type = "text/javascript";
     var src = "true";
-    if (src === "" || src === "true") src = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-MML-AM_CHTML";
+    if (src === "" || src === "true") src = "https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.9/latest.js?config=TeX-MML-AM_CHTML";
     if (location.protocol !== "file:")
       if (/^https?:/.test(src))
         src = src.replace(/^https?:/, '');

@@ -43,6 +43,8 @@ fig:2-4
 fig:2-4-1
 fig:2-5-1
 fig:2-5-2
+fig:2-5-3
+fig:2-5-4
 fig:2-6
 fig:2-7
 tab:confusion
@@ -67,7 +69,7 @@ fig:m1-rf-varimp
 fig:m1-rf-predict
 fig:m2-rf-mtry-1
 fig:m2-rf-mtry-2
-fig:unnamed-chunk-192
+fig:unnamed-chunk-193
 fig:m1-gbm-tune
 fig:m2-gbm-tune
 fig:m12-gbm-predict

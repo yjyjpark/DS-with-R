@@ -503,7 +503,8 @@ fit1
 ```{r}
 df1 <- Mroz %>% 
   summarise(across(c(age,lwg,inc), mean)) %>%
-  expand_grid(k5 = 0:4, wc = c("yes", "no"))
+  expand_grid(k5 = 0:4, wc = c("yes", "no")
+              )
 ```
 
 ```{r}
@@ -514,9 +515,11 @@ df1
 
 ```{r 2-5-1, fig.cap="`k5`와 `wc`의 값에 따른 `lfp`가 `'yes'`가 될 확률의 변화"}
 df1 %>% 
-    mutate(p1 = predict(fit1, newdata = df1, type = "response")) %>% 
+    mutate(p1 = predict(fit1, newdata = df1, 
+                        type = "response")) %>% 
     ggplot() +
-    geom_col(aes(x = k5, y = p1, fill = wc), position = "dodge") +
+    geom_col(aes(x = k5, y = p1, fill = wc), 
+             position = "dodge") +
     labs(y = "Prob") 
 ```
 
@@ -533,22 +536,75 @@ df1 %>%
 df2 <- Mroz %>% 
   summarise(across(c(age, inc), mean)) %>% 
   expand_grid(k5 = 0:3, wc = c("yes", "no"), 
-            lwg = seq(-2, 3, length = 50))
+            lwg = seq(-2, 3, length = 50)
+            )
 ```
 
 이제 `df2`에 주어진 설명변수의 값에 대하여 `lfp`가 `"yes"`가 될 확률을 예측하고, 그 결과를 선그래프로 나타내 보자.
 
 ```{r 2-5-2, fig.cap="`k5`, `wc`와 `lwg`의 값에 따른 `lfp`가 `'yes'`가 될 확률의 변화", fig.width=8}
 df2 %>% 
-  mutate(p2 = predict(fit1, newdata = df2, type = "response")) %>% 
+  mutate(p2 = predict(fit1, newdata = df2, 
+                      type = "response")) %>% 
   ggplot() +
-  geom_line(aes(x = lwg, y = p2, color = factor(k5)), size = 1) +
+  geom_line(aes(x = lwg, y = p2, color = factor(k5)), 
+            size = 1) +
   facet_wrap(vars(wc)) +
   labs(color = "Number of Kids", y = NULL) +
   ylim(0,1)
 ```
 
 변수 `lwg`의 값에 따른 `lfp`가 `"yes"`가 될 확률을 선그래프로 표시하되, `k5`의 값에 따라 다른 색으로 표시했으며, 변수 `wc`는 faceting으로 효과를 비교했다.
+그림 \@ref(fig:2-5-2)와 같은 facet 그래프는 faceting 변수의 각 범주 내에서의 효과 비교는 수월하게 이루지지만, 범주 간의 효과 비교는 조금 어려운 측면이 있다. 예를 들어, `wc`가 `"no"`인 그룹과 `"yes"`인 그룹에서 `k5`가 0에 해당하는 두 곡선의 직접적인 비교가 어렵다는 것이다.
+
+따라서 변수 `wc`의 효과를 다르게 나타낼 수 있는 그래프를 함께 작성하는 것이 필요할 것이다. 
+`wc`를 시각적 요소 `linetype`에 매핑한 그래프를 작성해 보자. 
+
+```{r 2-5-3, fig.cap="`k5`, `wc`와 `lwg`의 값에 따른 `lfp`가 `'yes'`가 될 확률의 변화", fig.width=8}
+df2 %>% 
+    mutate(p2 = predict(fit1, newdata = df2, 
+                        type = "response")) %>% 
+    ggplot() +
+    geom_line(aes(x = lwg, y = p2, 
+                  color = factor(k5), linetype = wc), 
+              size = 1) +
+    labs(color = "Number of Kids", linetype = "WC", 
+         y = NULL) +
+    ylim(0,1)
+```
+
+이번에는 모형 `fit1`에서 설명변수 `k5`와 `inc`, 그리고 `lwg`의 영향력을 그래프로 표현해 보자. 
+설명변수 `age`는 평균으로, `wc`는 `"yes"`인 경우로 고정하자.  
+`k5`의 값이 0, 1, 2, 3이며, `lwg`가 (-2, 3)의 값을 갖고, `inc`가 (0, 30)의 값을 갖을 때,
+`lfp`가 `"yes"`가 될 확률이 어떻게 변화하는지 그래프로 나타내 보자. 
+먼저 확률 예측에 사용될 새로운 데이터를 구성해 보자.
+
+```{r}
+df3 <- 
+  Mroz |> 
+  summarise(age = mean(age), wc = "yes") |> 
+    expand_grid(k5 = 0:3, inc = seq(0, 30, length = 50),
+                lwg = seq(-2, 3, length = 50)
+    )
+```
+
+연속형 변수 `inc`와 `lwg`의 값에 따라 `lfp`가 `"yes"`가 될 확률의 변화를 함께 나타낼 수 있는 그래프에는 Heatmap이 있으며, 함수 `geom_raster()`로 작성할 수 있다. 
+변수 `k5`의 효과는 faceting으로 나타내 보자. 
+
+```{r 2-5-4, fig.cap="`k5`, `inc`와 `lwg`의 값에 따른 `lfp`가 `'yes'`가 될 확률의 변화", fig.width=8, fig.height=5}
+df3 |>  
+    mutate(p3 = predict(fit1, newdata = df3, 
+                        type = "response")) %>% 
+    ggplot() +
+    geom_raster(aes(x = lwg, y = inc, fill = p3)) +
+    scale_fill_viridis_c() +
+    facet_wrap(vars(k5), labeller = "label_both") +
+    labs(fill = "P(Y=1)")
+```
+
+변수 `inc`의 값이 낮아지고 `lwg`의 값이 증가함에 따라 `lfp`가 `"yes"`가 될 확률이 높아지고 있지만,
+`k5`의 값이 상승함에 따라 확률은 전반적으로 크게 떨어지는 것을 볼 수 있다. 
+
 
 ## 회귀진단 {#section-logistic-diagnostic}
 
