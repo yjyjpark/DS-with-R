@@ -24,10 +24,10 @@ Statistical learning은 데이터를 이해하려는 통계적인 접근 방법�
 Supervised learning은 반응변수의 유형에 따라 연속형 반응변수의 경우에 적용되는 regression 모형과 범주형 반응변수의 경우에 적용되는 classification 모형으로 구분할 수 있다. 
 이 책에서는 supervised statistical learning에서 선형회귀모형과 로지스틱 회귀모형, 그리고 tree-based 모형 중 bagging과 random forest, 그리고 boosting에 대한 기본적인 내용을 살펴보고, R을 사용해서 예제 문제를 함께 풀어보도록 하겠다. 
 
-이 책에서는 선형회귀모형 및 로지스틱 회귀모형의 이론적인 내용은 다루고 있지 않다. 
+이 책에서는 선형회귀모형 및 로지스틱 회귀모형의 이론적인 내용을 자세하게 다루고 있지 않다. 
 이론적인 부분을 포함해서 statistical learning에 대한 포괄적인 내용은 [An Introduction to Statistical Learning](https://www.statlearning.com/) 에서 찾아 볼 수 있으며, 선형회귀모형에 대한 조금 더 자세한 설명은 [R과 회귀분석](https://yjyjpark.github.io/Reg-with-R)에서 볼 수 있다.  
 
-또한한 R의 기초적인 사용법 및 패키지 [`tidyverse`](https://www.tidyverse.org/)에 대한 소개 없이 사용하고 있으며, R code에는 프롬프트(`>` 또는 `+`)를 제거하였고, console 창에 출력되는 실행 결과물은 `##`으로 시작되도록 하였다.
+또한 R의 기초적인 사용법 및 패키지 [`tidyverse`](https://www.tidyverse.org/)에 대한 소개 없이 사용하고 있으며, R code에는 프롬프트(`>` 또는 `+`)를 제거하였고, console 창에 출력되는 실행 결과물은 `##`으로 시작되도록 하였다.
 `dplyr`과 `ggplot2` 등을 포함한 R 사용법에 대한 소개는 [R과 통계분석](https://yjyjpark.github.io/R-and-statistical-analysis) 에서 볼 수 있다. 
 
 이 책을 작성할 때의 R 세션 정보는 다음과 같다.
