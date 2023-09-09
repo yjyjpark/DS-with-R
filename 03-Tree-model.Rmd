@@ -1,0 +1,1066 @@
+# Tree-based 모형 {#chapter-tree-model}
+
+\@ref(chapter-regression)장에서는 반응변수가 연속형인 경우에 적용되는 회귀모형에 대해 살펴보았고, 
+\@ref(chapter-Logistic)장에서는 반응변수가 이항변수인 경우에 적용되는 분류모형에 대해 살펴보았다.
+지금부터는 연속형 반응변수에 적용되는 회귀모형과 이항반응변수에 적용되는 분류모형에 모두 적용될 수 있는 "tree-based" 모형에 대해 살펴보고자 한다.
+
+Tree-based 모형은 기본적으로 설명변수 공간의 분할을 근거로 하고 있다.
+설명변수의 공간의 분할 결과는 tree 형태로 표현되며, 
+모형의 예측은 동일 공간에 속한 자료의 평균값(회귀모형)이거나, 최빈값(분류모형)으로 이루어진다. 
+
+Tree-based 모형은 해석이 쉽고 편하다는 장점이 있으나,
+\@ref(chapter-regression)장이나 \@ref(chapter-Logistic)장에서 살펴본 모형에 비하여 예측의 정확도나 효율성이 상당히 떨어진다는 문제가 있다. 
+예측의 정확도를 높이기 위해 대안으로 제시되는 tree-based 모형에는 *Bagging*, *random forest*, *boosting* 모형이 있다.
+이 방식들의 공통점은 많은 수의 tree 모형을 적합시키고, 그 결과를 결합해서 예측하는 것이다. 
+
+## Decision tree 모형 {#section-decision-tree}
+
+### Regression tree 모형 {#section-reg-tree}
+
+연속형 반응변수에 대한 tree 모형을 regression tree 모형이라고 한다. 
+Regression tree 모형에 대한 예제 자료로 패키지 `ISLR`에 있는 데이터 프레임 `Hitters`를 사용해 보자.
+`Hitters`는 MLB 1986~87 시즌 322명 선수의 연봉에 대한 자료이다.
+
+```{r}
+data(Hitters, package="ISLR")
+```
+
+```{r}
+library(tidyverse)
+Hitters |> as_tibble() |> print(n = 5)
+```
+
+`log(Salary)`를 반응변수, `Years`와 `Hits`를 설명변수로 하는 regression tree를 구성해 보자.
+적합된 tree 모형은 그림 \@ref(fig:rtree-1)에서 볼 수 있다. 
+적합된 tree 모형은 'root node'를 시작으로 `Years < 4.5`를 기준으로 첫 번째 분리가 이루어졌고, 
+`Hits < 117.5`를 기준으로 두 번째 분리가 이루어진 것을 알 수 있다.
+두 번의 분리로 새 개의 'terminal node' 혹은 'leaves'가 생성되었다. 
+
+```{r rtree-1, fig.cap="`Hitters` 자료에 대한 regression tree 모형 적합 결과", echo=FALSE}
+library(rpart)
+library(rpart.plot)
+
+fit1 <- rpart(log(Salary) ~ Years + Hits, data=Hitters, method="anova", cp=0.05)
+rpart.plot(fit1, roundint=FALSE, digits=4)
+```
+
+Tree 모형의 적합 과정은 설명변수의 공간을 분할하여, 동일 공간에 속한 반응변수 자료의 동질성을 최대화하는 것이다.
+그림 \@ref(fig:rtree-1)에 표현된 tree 모형은 설명변수 `Years`와 `Hits`로 구성된 2차원 공간을 `log(Salary)`가 동일 공간에서는 최대한 유사한 값을 갖도록 세 개 공간으로 분할한 것이다. 
+분할된 공간 R1, R2, R3를 표현한 그래프는 그림 \@ref(fig:rtree-2)에서 볼 수 있다.  
+
+```{r rtree-2, fig.cap="`Hitters` 자료에 대한 regression tree 모형의 설명변수 공간 분할", echo=FALSE, fig.height=5, fig.width=5}
+Hitters |> 
+  ggplot(aes(x = Years, y= Hits)) +
+  geom_point(color = "gray30") +
+  geom_vline(xintercept = 4.5, size = 1.5, color = "blue") +
+  geom_segment(y = 117.5, yend = 117.5, x = 4.5, xend = 25, size = 1.5, color = "blue") +
+  geom_text(x = 2.5, y = 175, size = 10, label = "R1", color = "red") +
+  geom_text(x = 20, y = 75, size = 10, label = "R2", color = "red") +
+  geom_text(x = 20, y = 200, size = 10, label = "R3", color = "red")
+```
+
+
+**$\bullet$ Tree 모형 적합: 설명변수 공간의 분할**
+
+Tree 모형 적합을 위한 설명변수의 공간 분할 방법에 대해 살펴보자.
+공간 분할의 기본적인 목표는 동일 공간에 속한 자료들의 동질성을 최대화하는 것이며,
+연속형 자료의 동질성은 분산의 개념을 이용해서 측정할 수 있다.
+즉, 설명변수 $X_{1}, X_{2}, \ldots, X_{k}$ 로 구성되는 전체 공간을 서로 겹치지 않는 $J$ 개의 공간으로 분리하고자 한다면,
+예측오차의 평가측도인 식 \@ref(eq:tree-rss-1)의 RSS가 최소가 되도록 $R_{1}, R_{2}, \ldots, R_{J}$ 를 구성하는 것이다. 
+
+\begin{equation}
+RSS = \sum_{j=1}^{J} \sum_{i \in R_{j}} \left(y_{i}-\overline{y}_{R_{j}} \right)^{2}
+(\#eq:tree-rss-1)
+\end{equation}
+
+그러나 공간 분할에 대한 구체적인 제약 조건이 없는 상태에서 식 \@ref(eq:tree-rss-1)을 최소화시키는 최적 분할을 찾는 것은 불가능한 문제이다.
+우리가 적용하려는 방식은 이른바 "top-down" 방식 혹은 "recursive binary splitting"이라고 하는 방식이다.
+단계적으로 RSS를 가장 크게 감소시킬 수 있는 분할을 실시하되, 이전 단계의 분할로 구성된 영역 중 하나를 선택해서 두 개의 영역으로 분리하는 것인데,
+이러한 분할은 설명변수 $X_{1}, X_{2}, \ldots, X_{k}$ 중 한 변수를 선택하고, 이어서 해당 변수의 분할 기준점을 찾는 작업으로 이루어진다.  
+
+분할 전 RSS는 전체 자료가 대상이므로 $RSS = \sum \left(y_{i}-\overline{y}\right)^{2}$ 가 된다. 
+첫 번째 분할은 식 \@ref(eq:tree-rss-2)의 RSS를 최소화시키는 분할 $R_{1}$ 과 $R_{2}$ 를 구성하는 것이다. 
+단, $R_{1}$은 $X_{j}<s$ 를 만족시키는 공간이고, $R_{2}$는 $X_{j} \geq s$ 를 만족시키는 공간이다. 
+
+\begin{equation}
+RSS = \sum_{i \in R_{1}} \left(y_{i}-\overline{y}_{R_{1}}\right)^{2} + \sum_{i \in R_{2}} \left(y_{i}-\overline{y}_{R_{2}}\right)^{2}
+(\#eq:tree-rss-2)
+\end{equation}
+
+두 번째 분할은 첫 번째 분할로 구성된 2개의 영역 중에서 RSS를 가장 크게 감소시킬 수 있도록 한 영역을 선택하고 분할 기준점을 찾아 두 영역으로 분리하는 것이다. 
+두 번째 분할이 이루어지면 총 3개의 영역이 구성된다. 
+이후의 분할 과정도 동일한 방식으로 진행되며, 미리 설정된 stopping rule이 만족될 때까지 반복된다. 
+
+
+**$\bullet$ Tree pruning**
+
+예제로 `ISLR::Hitters`에서 `log(Salary)`를 반응변수로, `Years`, `Hits`, `RBI`, `Walks`, `PutOuts`를 설명변수로 하는 tree 모형의 적합결과를 그래프로 나태내 보자.  
+
+```{r rtree-3, fig.cap="`Hitters` 자료에 대한 regression tree 모형 적합 결과", echo=FALSE, fig.width=8, fig.height=6}
+fit2 <- rpart(log(Salary) ~ Years + Hits + RBI + Walks + PutOuts, 
+              data=Hitters, method="anova", cp=0.001)
+rpart.plot(fit2, roundint=FALSE, digits=4)
+```
+
+적합된 tree 모형은 19개의 terminal nodes가 있는 비교적 복잡한 형태의 모형이다.
+지나치게 많은 분할이 이루어진 tree 모형은 training data의 세밀한 특징을 잘 나타낼 수 있겠지만,
+test data와 같은 새로운 자료에 대해서는 매우 부정확한 예측을 하게 되는 이른바 overfitting의 문제가 있을 수 있다. 
+반면에 작은 횟수의 분할로 적합된 작은 크기의 tree 모형은 training data에 대한 설명력이 조금은 떨어져서 bias가 커지는 문제가 있겠지만,
+예측 결과의 변동성은 낮아지는, 즉 variance가 작아지는 효과를 볼 수 있다.
+따라서 가장 적절한 크기의 tree 모형을 선택할 수 있는 방법이 필요하며, 이것은 tree pruning이라고 한다. 
+
+우리가 적용할 방법은 모형의 복잡성, 즉 tree 모형의 크기가 미치는 영향력을 조절하는 tuning parameter를 사용하는 방법이다. 
+식 \@ref(eq:tree-rss-1)에 정의된 RSS는 분할이 진행되어 모형의 복잡성이 높아질수록 감소하는 특징을 갖고 있는데,
+여기에 모형의 복잡성을 penalty로 추가함으로써, 모형의 크기를 고려한 예측오차를 정의할 수 있다. 
+
+\begin{equation}
+RSS_{c_{p}} = RSS + c_{p} \cdot |T| (\#eq:tree-cp-1)
+\end{equation}
+
+단, $|T|$ 는 tree 모형의 terminal nodes의 개수이고, $c_{p}$ 는 0 또는 양수를 값으로 갖는 tuning parameter이다. 
+$c_{p}$ 의 역할은 모형의 복잡성, 즉 tree 모형 크기의 영향력을 조절하는 것으로써,
+만일 $c_{p}=0$ 이면 $RSS_{c_{p}}$ 는 식 \@ref(eq:tree-rss-1)에 정의된 RSS와 동일한 것이 되며, 
+$c_{p}$ 의 값이 증가함에 따라 tree 모형의 크기는 감소하게 된다. 
+최적 $c_{p}$ 값은 cross-validataion에 의한 예측오차 계산으로 선택할 수 있다. 
+
+
+**$\bullet$ Cross-validation**
+
+Test error는 통계모형의 적합에 사용되지 않은 새로운 자료에 대한 예측 오차를 의미하며,
+특정 통계모형에 의한 예측의 정당성을 확보하기 위해서는 test error가 낮다는 것을 확인할 수 있어야 한다. 
+그렇다면 Test error를 효과적으로 추정할 수 있는 방법이 무엇인지 살펴보자.   
+전체 data를 training data와 test data로 분리해서 test data set을 확보할 수 있지만, 
+충분한 양을 확보하기에는 현실적인 어려움이 있을 수 있다. 
+
+Cross-validation은 training data를 이용한 test error의 추정방법이다. 
+Training data 중 일부분을 모형적합 과정에서 제외해서 test 목적으로 사용하는 것인데,
+자료의 제외 방식 등에 따라서 몇 가지 방법으로 구분된다. 
+그 중에서 "leave-one-out cross-validation"과 "k-fold cross-validation"에 대해 살펴보자. 
+
+- Leave-one-out cross-validation (LOOCV)
+
+전체 $n$ 개의 자료 중 한 개의 자료를 모형 적합에서 차례로 제외하고 test 목적으로 사용하는 방식이다. 
+즉, 자료 $(\mathbf{x}_{1}, y_{1}), \ldots, (\mathbf{x}_{n}, y_{n})$ 중 $(\mathbf{x}_{i}, y_{i})$, $i=1, 2, \ldots, n$ 을 제외하고 적합한 모형으로 $y_{i}$ 를 예측하는 과정을 $n$ 번 반복하며,
+그 과정에서  발생한 오차를 근거로 test error를 다음과 같이 추정하는 방식이다. 
+
+\begin{equation}
+\frac{1}{n} \sum_{i=1}^{n} \left(y_{i}-\hat{y}_{i}\right)^{2}
+(\#eq:loocv)
+\end{equation}
+
+전체 자료 중 한 개의 자료만 제외되므로 자료의 크기가 큰 대규모의 자료인 경우에는 많은 계산 과정이 필요한 방식이다.
+대부분의 자료가 사용되기 때문에 예측 bias는 작겠지만,
+$n$ 번의 적합 과정에서 사용된 자료가 거의 비슷하기 떄문에, 각 모형의 예측 결과 사이에는 높은 상관관계가 존재하게 되고, 
+따라서 예측 결과의 분산이 커지는 문제가 있다. 
+
+
+- k-fold cross-validation
+
+먼저 training data를 비슷한 크기의 $k$ 개의 그룹(fold)으로 구분한다. 
+이어서 그 중 한 그룹의 자료를 제외하고 나머지 자료만으로 모형을 적합한 후에 제외된 한 그룹 자료의 반응변수를 예측하고 예측 오차를 계산한다.
+이 과정을 $k$ 번 차례로 반복하면 $k$ 개의 예측 오차를 얻게 되는데,
+그 오차의 평균으로 test error를 추정하는 방식이다. 
+
+LOOCV에 비해 계산 과정이 단순한 방식인데, 
+모형적합 과정에 사용된 자료의 개수가 LOOCV 보다 작기 때문에 bias는 더 클 수 있다.
+그러나 한 그룹의 자료가 차례로 제외된 상태에서 $k$ 번의 모형 적합이 이루어지기 때문에, 
+각 모형 적합에 사용된 자료 중 겹치는 자료의 비율은 더 낮아지게 되고, 
+따라서 예측 결과 사이의 상관관계가 더 낮게 형성될 수 있어서,
+예측의 분산을 낮출 수 있는 효과가 있다. 
+
+$k$ 값을 조정하면 bias와 variance 사이의 trade-off가 가능한데, 
+일반적으로 사용되는 것은 $k=5$ 또는 $k=10$ 이다. 
+
+
+**$\bullet$ 예제: `MASS::Boston`**
+
+`Boston`은 보스톤 지역의 주택 가격에 대한 자료이다. 
+
+```{r}
+data(Boston, package = "MASS")
+str(Boston)
+```
+
+변수 `medv`를 반응변수로 하는 tree 모형을 적합해 보자. 
+자료탐색 과정은 생략하고 tree 모형적합 절차만을 살펴보도록 하자.
+분석의 첫 번째 단계는 전체 자료를 training data와 test data로 분리하는 것이다. 
+
+```{r}
+library(caret)
+library(tidyverse)
+```
+
+```{r}
+set.seed(123)
+train.id <- createDataPartition(Boston$medv, p = 0.7, list = FALSE)[,1]
+train_B <- Boston |> slice(train.id)
+test_B <- Boston |> slice(-train.id)
+```
+
+Tree 모형의 적합은 패키지 `caret`의 함수 `train()`으로 진행할 것이다. 
+패키지 `caret`은 Machine learning에 최적화된 패키지로써 분석에 필수적인 기능을 모두 포함하고 있으며,
+다양한 modelling 기법을 표준화된 방식으로 사용할 수 있다. 
+
+함수 `train()`은 ML 모형의 적합을 위해 사용되는 함수인데, 239 종류의 ML 모형 적합이 가능하다.
+작동 방식은 각 ML 모형의 적합을 위한 패키지에서 필요한 함수를 불러와 적용시키는 것인데,
+표준화된 방식을 사용하기 때문에 사용자가 편하게 사용할 수 있다. 
+모형 선택은 `method`에 각 ML 모형의 키워드를 지정하면 된다. 
+Tree 모형의 경우에는 `method = 'rpart'`를 입력하면 되며, 필요한 패키지인 `rpart`는 설치되어야 한다. 
+또한 각 ML 모형마다 필요한 tuning parameter를 `TuneLength` 또는 `TuneGrid`를 통해서 지정할 수 있다. 
+
+함수 `train()`을 사용해서 tree 모형을 적합해 보자. 
+모형 적합은 식 \@ref(eq:tree-cp-1)에 정의된 방식을 사용하되, 10-fold CV으로 tuning parameter $c_{p}$ 의 최적 값을 찾아보자.  
+
+```{r, warning=FALSE}
+set.seed(1)
+m1 <- train(medv ~ ., data = train_B, 
+            method = "rpart", tuneLength = 10,
+            trControl = trainControl(method = 'cv', number = 10))
+```
+
+함수 `train()`에서 모형 설정은 함수 `lm()`과 동일하게 R formula 방식을 사용할 수 있으며,
+반응변수가 연속형이면 regression tree 모형이 적합된다.
+요소 `method`에 `"rpart"`를 지정하면, 예측 오차가 최소인 tree 모형을 적합한다.
+요소 `tuneLength`에는 최적 tuning parameter 값을 찾기 위한 grid의 길이를 지정할 수 있다.
+요소 `trControl`은 모형의 적합 및 평가 방식 등을 설정하는 기능을 갖고 있는데, 
+함수 `trainControl()`을 사용해서 지정하게 된다. 
+함수 `trainControl()`의 요소 `method`에는 적용되는 CV 방식을 정할 수 있는데, `method = 'cv', number = 10`은 10-fold CV를 의미한다. 
+
+적합된 결과를 살펴보자. 
+
+```{r}
+m1
+```
+
+10-fold CV로 계산된 예측 오차의 `RMSE`를 근거로 최적 모형이 선택되었다.
+다른 측도인 `Rsquared` 또는 `MAE`를 근거로 모형을 선택하기 위해서는 요소 `metric`에 해당 문자를 지정해야 한다.  
+
+```{r, warning=FALSE}
+set.seed(1)
+train(medv ~ ., data = train_B, 
+      method = "rpart", tuneLength = 10,
+      trControl = trainControl(method = 'cv', number = 10),
+      metric = "Rsquared")
+```
+
+적합된 tree 모형을 그래프로 표현해 보자. 
+패키지 `rpart.plot`의 함수 `rpart.plot()`을 사용하면 된다. 
+
+```{r rtree-boston-1, fig.cap="`Boston` 자료의 tree 모형 적합 결과"}
+library(rpart.plot)
+rpart.plot(m1$finalModel, roundint=FALSE, digits = 3)
+```
+
+함수 `rpart.plot()`의 요소 `roundint`는 분리 기준 숫자를 정수로 반올림해서 표시할 것인지를 정하는 것이고, `digits`는 유효숫자를 지정하는 것이다. 
+
+그림 \@ref(fig:rtree-boston-1)의 각 node에 숫자가 표시되어 있는데, 
+첫 번째 숫자는 각 node에 속한 자료의 변수 `medv`의 평균값이고,
+두 번째 숫자는 각 node에 속한 자료의 비율이다. 
+
+최적 tree 모형을 선택하는 기준으로 '최소예측오차'가 많이 사용되고 있는데, 
+'one-standard-error(1SE) rule'을 사용하는 것도 괜찮은 대안이 될 수 있다. 
+1SE rule은 (최소 예측 오차 + 1SE) 범위에 포함되는 tree 모형 중 크기가 가장 작은 모형을 최적 모형으로 선택하는 방법이다. 
+함수 `train()`에서는 `method = "rpart1SE"`를 지정하면 된다. 
+이 경우에는 적용되는 tuning parameter가 없기 때문에 `tuneLength`는 필요 없다.
+
+```{r}
+set.seed(1)
+m2 <- train(medv ~ ., data = train_B, 
+            method = "rpart1SE",
+            trControl = trainControl(method = 'cv', number = 10))
+```
+
+적합 결과를 그래프로 확인해 보자. 
+
+```{r rtree-boston-2, fig.cap="`Boston` 자료의 1SE rule에 의한 tree 모형 적합 결과"}
+rpart.plot(m2$finalModel, roundint=FALSE, digits = 3)
+```
+
+그림 \@ref(fig:rtree-boston-1)에 표현된 최소 RMSE 모형보다 node의 개수가 하나 작은 것을 알 수 있다.
+이제 적합된 두 tree 모형을 이용하여 test data에 대한 예측 실시해 보자. 
+예측은 함수 `predict()`로 할 수 있다. 
+
+```{r}
+pred_1 <- predict(m1, newdata = test_B)
+pred_2 <- predict(m2, newdata = test_B)
+```
+
+예측 오차의 확인은 `caret`의 함수 `defaultSummary()`로 할 수 있다. 
+Test data의 반응변수와 예측 결과를 각각 `obs`와 `pred`라는 이름의 열로 구성한 데이터 프레임을 만들어서 입력하면 된다.
+
+```{r}
+defaultSummary(data.frame(pred = pred_1, obs = test_B$medv))
+defaultSummary(data.frame(pred = pred_2, obs = test_B$medv))
+```
+
+
+### Classification tree 모형 {#section-classification-tree}
+
+Classification tree 모형은 반응변수가 범주형 변수인 경우에 적용되는 tree 모형으로써, 
+로지스틱 회귀모형처럼 분류가 주된 목적으로 사용되는 모형이다. 
+모형 설정 방법은 \@ref(section-reg-tree)절에서 살펴본 regression tree 모형의 경우와 동일하게 설명변수 공간에 대한 recursive binary splitting으로 같은 공간에 속한 자료의 동질성을 더 높이도록 분할이 이루어진다.
+
+자료의 동질성 측도로 regression tree에서는 RSS를 사용했는데, 분류 목적에는 적합하지 않은 측도가 된다.
+분류가 목적인 모형에서는 동일 범주에 속한 자료의 비율이 중요한 동질성 측도가 되는데,
+classification tree에서는 Gini index와 entropy로 동질성을 측정한다.  
+
+두 개의 범주로 이루어진 이항 반응변수에 대한 Gini index와 entropy의 정의를 살펴보자. 
+$p_{1}$ 과 $p_{2}$ 를 각각 첫 번째 범주와 두 번째 범주에 속할 확률이라고 하면, Gini index는 다음과 같다. 
+
+\begin{equation}
+p_{1}(1-p_{1}) + p_{2}(1-p_{2}) = 2p_{1}p_{2}
+(\#eq:gini)
+\end{equation}
+
+Entropy는 다음과 같다. 
+
+\begin{equation}
+-(p_{1} \log p_{1} + p_{2} \log p_{2})
+(\#eq:entropy)
+\end{equation}
+
+Gini index와 entropy는 모두 $p_{i}$ 가 0 또는 1에 가까운 값을 가질수록 작은 값을 갖게 되는 측도인데,  
+$p_{i}$ 가 0 또는 1에 가까운 값을 갖는다는 것은 곧 자료의 동질성이 높다는 것을 의미한다.
+따라서 자료의 동질성이 높아질수록 작은 값을 갖게 되는 측도이다. 
+
+**$\bullet$ 예제: `Mroz` 자료**
+
+\@ref(section-logistic-selection)절에서 살펴본 `Mroz` 자료를 대상으로 classification tree 모형을 적합해 보자. 
+`Mroz` 자료는 미국 여성의 직업 참여에 대한 자료이며, 반응변수는 `lfp`이다. 
+
+```{r}
+data(Mroz, package = "carData")
+str(Mroz)
+```
+
+함수 `caret::createDataPartition()`으로 자료분리를 진행해 보자. 
+
+```{r}
+library(tidyverse)
+library(caret)
+```
+
+```{r}
+set.seed(123)
+x.id <- createDataPartition(Mroz$lfp, p = 0.8, list = FALSE)[,1]
+train_M <- Mroz |> slice(x.id)
+test_M <- Mroz |> slice(-x.id)
+```
+
+함수 `caret::train()`으로 tree 모형을 적합시켜 보자. 
+요인이 반응변수로 지정되면 classification tree 모형이 적합된다. 
+
+```{r}
+set.seed(1234)
+m1 <- train(lfp ~ ., data = train_M, 
+            method = "rpart", tuneLength = 10,
+            trControl = trainControl(method = 'cv', number = 10))
+```
+
+적합 결과를 확인해 보자. 
+
+```{r}
+m1
+```
+
+정분류율인 `Accuracy`가 최적 모형선택의 디폴트 기준임을 알 수 있다. 
+다른 분류 평가 측도를 사용해서 최적 모형을 선택해 보자. 
+다른 평가 측도를 사용하기 위해서는 해당 측도의 값을 계산해야 하는데,
+함수 `trainControl()`의 요소 `summaryFunction`에 키워드를 지정해야 해당 측도의 계산이 진행된다.  
+
+`ROC`(area under ROC curve), `Sens`(Sensitivity), `Spec`(Specificity)의 계산을 위한 키워드는 `twoClassSummary`이고, 
+`AUC`(area under Precision-Recall curve), `Precision`, `Recall`, `F`(F1 score)의 계산을 위한 키워드는 `prSummary`이다. 
+또한 함수 `trainControl()`의 요소 `classProbs`에는 `TRUE`를 지정해야 ROC curve 및 Precision-Recall curve 작성을 위해 각 범주에 속할 확률을 계산한다. 
+
+평가 측도 `ROC`에 의한 최적 모형을 선택해 보자. 
+
+```{r, warning=FALSE}
+set.seed(1234)
+train(lfp ~ ., data = train_M, 
+      method = "rpart", tuneLength = 10,
+      metric = "ROC",
+      trControl=trainControl(method = 'cv', number = 10,
+                             classProbs = TRUE,
+                             summaryFunction = twoClassSummary)
+      )
+```
+
+평가 측도 `F`에 의한 최적 모형을 선택해 보자.
+
+```{r, warning=FALSE}
+set.seed(1234)
+train(lfp ~ ., data = train_M, 
+      method = "rpart", tuneLength = 10,
+      metric = "F",
+      trControl=trainControl(method = 'cv', number = 10,
+                             classProbs = TRUE,
+                             summaryFunction = prSummary)
+      )
+```
+
+모형 `m1`의 적합 결과를 그래프로 표현해 보자. 
+
+```{r ctree-mroz-1, fig.cap="`Mroz` 자료의 tree 모형 적합 결과"}
+library(rpart.plot)
+rpart.plot(m1$finalModel, roundint = FALSE, digits = 3)
+```
+
+그림 \@ref(fig:ctree-mroz-1)의 각 node에 3가지 결과가 표시되어 있는데,
+첫 번째는 해당 node의 다수 범주를 표시하고 있고, 
+두 번째 숫자는 두 번째 범주인 "yes" 범주에 속한 자료의 비율이 표시되어 있다. 
+즉, root node인 전체 자료의 다수 범주는 "yes"이고, 그 비율이 0.569라는 것이다. 
+세 번째 백분율은 각 node에 속한 자료의 비율을 나타내고 있다. 
+
+모형 `m1`으로 test data에 대한 예측을 함수 `predict()`로 실시해 보자. 
+
+```{r}
+pred_1 <- predict(m1, newdata = test_M) 
+pred_1[1:10]
+```
+
+함수 `train()`으로 생성된 객체에 함수 `predict()`로 예측을 실시하면 `type = "raw"`가 디폴트로 적용되는데, 
+연속형 반응변수인 regression tree 모형의 경우에는 mean 값이 출력되고,
+이항 반응변수인 classification tree 모형의 경우에는 class가 출력된다. 
+만일 각 그룹에 속할 확률을 출력하고자 하면, `type = "prob"`를 지정해야 한다. 
+
+```{r}
+predict(m1, newdata = test_M[1:5,], type = "prob")
+```
+
+Test data에 대한 모형 `m1`의 분류 성능을 함수 `caret::confusionMatrix()`로 평가해 보자. 
+
+```{r}
+confusionMatrix(data = pred_1, reference = test_M$lfp, 
+                  positive = "yes", mode = "everything")
+```
+
+
+## Bagging {#section-bagging}
+
+\@ref(section-decision-tree)절에서 살펴본 decision tree 모형의 가장 큰 문제는 분산이 매우 크다는 점이다. 
+분산이 큰 모형은 자료가 조금만 달라져도 적합 결과에 큰 변동이 발생하게 되는데, 
+예측 모형에게는 심각한 결합이 되는 문제라 할 수 있다. 
+
+분산을 낮추는 방법으로 여러 개의 독립된 training data를 생성해서 각각의 training data에 대한 tree 모형을 적합하고, 추정된 각각의 모형에서 생성된 예측값들의 평균을 최종 예측 결과로 사용하는 것을 생각해 볼 수 있다.
+이 방법은 분산이 $\sigma^{2}$ 인 독립된 $n$ 개의 관찰값 $X_{1}, X_{2}, \ldots, X_{n}$ 의 평균 $\overline{X}$ 는 분산이 $\sigma^{2}/n$ 이 되어서 개별 관찰값보다 더 작은 분산을 가질 수 있다는 사실에 근거로 두고 있다. 
+
+문제는 여러 개의 독립된 training data를 모집단에서 다시 생성하는 것이 사실상 불가능하다는 것이다. 
+따라서 기존의 자료에서 여러 개의 표본을 다시 생성하는 방법을 고려해야 하는데,
+Bootstrap이 좋은 대안이 될 수 있다. 
+
+Bootstrap은 추정량이나 예측모형 등의 불확실성을 탐색하기 위한 매우 유용한 도구로 사용되는 resampling 기법이다. 
+어떤 추정량의 추정 결과에 대한 정확도 등을 평가하기 위해서는 해당 추정량의 표본분포가 반드시 필요하다.
+추정량의 표본분포란 모집단에서 반복적으로 추출한 임의표본으로 계산한 추정량 값의 분포를 의미한다.
+일반적으로는 이론적으로 추정량의 표본분포를 유도하지만, 이론적으로 유도하기 어려운 형태의 추정량도 많이 있다. 
+이런 경우에 대안으로 사용할 수 있는 방법이 Bootstrap인데,
+기본 개념은 모집단에서 독립된 임의표본을 반복적으로 추출하는 것 대신에 원자료, 즉 원래의 표본자료에서 독립된 임의표본을 반복적으로 추출하는 것이다.
+즉, 크기가 $n$ 인 원자료에서 복원추출로 크기가 $n$ 인 임의표본을 추출하는 과정을 $B$ 번 반복해서, $B$ 세트의 독립된 표본을 구성하는 것이다.
+복원추출을 사용한 이유는 독립된 임의표본을 추출하기 위함이다.
+
+*Bootstrap aggregating* 또는 Bagging은 training data에서 $B$ 개의 bootstrap sample을 추출하는 것으로 시작한다. 
+$B$ 개의 bootstrap sample은 독립된 training data로 간주할 수 있으며, 각 bootstrap sample에 대한 full size tree 모형을 적합하고, 예측 결과를 통합함으로써 모형의 분산을 크게 낮출수 있는 것이다. 
+$B$ 개의 tree 모형의 예측 결과를 통합해서 최종 예측 결과를 산출하는 방식으로 regression tree에서는 예측값의 평균을 사용하며, classification tree에서는 다수로 분류된 범주를 사용한다.    
+
+
+**$\bullet$ `caret`에 의한 Bagging**
+
+`caret`에서 함수 `train()`으로  bagging을 실행하기 위해서 필요한 패키지는 `ipred`와 `e1071`이다.
+
+- 예제 : `MASS::Boston`
+
+Regression tree 모형에 대한 bagging 예제로써 \@ref(section-reg-tree)절에서 살펴본 `MASS::Boston`을 사용해 보자. 
+
+```{r}
+library(tidyverse)
+library(caret)
+```
+
+```{r}
+data(Boston, package="MASS")
+```
+
+자료분리를 실시하자. 
+
+```{r}
+set.seed(123)
+train.id <- createDataPartition(Boston$medv, p = 0.7, list = FALSE)[,1]
+train_B <- Boston |> slice(train.id)
+test_B <- Boston |> slice(-train.id)
+```
+   
+함수 `train()`으로 bagged tree 모형을 적합하기 위해서는 `method = "treebag"`을 지정해야 한다. 
+
+```{r}
+ctrl <- trainControl(method = "cv", number = 10)
+```
+
+```{r}
+set.seed(123)
+m1_bag <- train(medv ~ ., data = train_B, 
+                method = "treebag", 
+                trControl = ctrl)
+```
+
+모형 `m1_bag`에 입력된 적합 결과를 확인해 보자. 
+
+```{r}
+m1_bag
+```
+
+Bagged tree 모형에서 tuning parameter는 bootstrap sample 추출 반복 횟수 $B$ 이다.
+`nbagg`에서 그 횟수를 지정할 수 있으며, 디폴트 횟수는 `nbagg = 25`이다. 
+`nbagg = 30`과 `nbagg = 50`에서 적합해서, 그 결과를 확인해 보자.
+`RMSE`, `Rsquared`와 `MAE`에서 큰 차이가 없음을 알 수 있다. 
+
+```{r}
+set.seed(123)
+train(medv ~ ., data = train_B, 
+      method = "treebag",
+      nbagg = 30, trControl = ctrl)$results
+```
+
+```{r}
+set.seed(123)
+train(medv ~ ., data = train_B, 
+      method = "treebag",
+      nbagg = 50, trControl = ctrl)$results
+```
+
+단일 tree 모형에 비해 bagged tree 모형은 예측 정확도에서 큰 폭의 개선이 이루어졌지만, 예측 결과에 대한 해석이 쉽다는 tree 모형의 장점은 완전히 사라졌고, 사실상 해석이 불가능한 모형이 되었다.
+즉, 개별 변수가 최종 예측에 어떤 영향을 미쳤는지 알 수 없다는 것이다.
+비록 최종 예측 결과에 대한 정확한 해석은 힘들어졌지만, 최종 모형에서 각 변수가 차지하는 중요도를 측정할 수는 있다. 
+개별 변수의 중요도는 각 변수가 tree 분할에 사용되며 감소시킨 RSS의 값으로 측정할 수 있는데,
+bagged tree 모형에서는 최종 예측에 다수의 tree 모형이 사용되고 있으므로,
+각 tree 모형에서 개별 변수가 tree 분할에 사용되며 감소시킨 RSS의 평균값으로 중요도를 측정할 수 있다. 
+평균 감소폭이 가장 큰 변수가 가장 중요한 변수라고 하겠다. 
+
+변수의 중요도를 측정할 수 있는 함수는 `caret::varImp()`이다. 
+모형 `m1_bag`에 대한 변수 중요도를 측정해서 그래프로 표현해 보자. 
+
+```{r m1-bag-varimp, fig.cap="`Boston` 자료에 대한 bagged tree 모형의 변수 중요도"}
+varImp(m1_bag) |> 
+  ggplot()
+```
+
+변수 `lstat`이 가장 중요한 변수로 측정되었다. 
+그림 \@ref(fig:m1-bag-varimp)의 X축에 표시된 각 변수의 중요도 값은 가장 중요한 변수의 평균 RSS 감소폭에 대한 비율을 표시하고 있다. 
+
+모형 `m1_bag`을 사용하여 test data에 대한 예측을 실시하고 결과를 평가해 보자. 
+
+```{r}
+pred_bag <- predict(m1_bag, test_B)
+defaultSummary(data.frame(pred = pred_bag, obs = test_B$medv))
+```
+
+예측 결과를 그래프로 표현해 보자. 
+
+```{r m1-bag-predict, fig.cap="`Boston` 자료에 대한 bagged tree 모형의 예측 결과"}
+tibble(pred = pred_bag, obs = test_B$medv) |> 
+  ggplot(aes(x = obs, y = pred)) +
+  geom_point() +
+  geom_abline(intercept = 0, slope = 1) +
+  labs(x = "Observed data", y = "Predicted data")
+```
+
+- 예제 : `carData::Mroz`
+
+Classification tree 모형에 대한 bagging 예제로써 \@ref(section-classification-tree)절에서 살펴본 `carData::Mroz`을 사용해 보자.
+
+```{r}
+data(Mroz, package="carData")
+```
+
+
+자료분리를 진행하자. 
+
+```{r}
+set.seed(123)
+x.id <- createDataPartition(Mroz$lfp, p = 0.8, list = FALSE)[,1]
+train_M <- Mroz |> slice(x.id)
+test_M <- Mroz |> slice(-x.id)
+```
+
+Bagged tree 모형을 적합해 보자. 
+
+```{r}
+ctrl <- trainControl(method = 'cv', number = 10)
+```
+
+```{r}
+set.seed(123)
+m2_bag <- train(lfp ~ ., data = train_M, 
+            method = "treebag",
+            trControl = ctrl)
+```
+
+적합 결과를 확인해 보자. 
+
+```{r}
+m2_bag
+```
+
+모형 `m2_bag`의 변수 중요도를 그래프로 나타내자.
+Classification 문제에 대한 bagged tree 모형에서 변수의 중요도는 Gini index의 평균 감소폭으로 측정한다. 
+
+```{r m2-bag-varimp, fig.cap="`Mroz` 자료에 대한 bagged tree 모형의 변수 중요도"}
+varImp(m2_bag) |> 
+  ggplot()
+```
+
+모형 `m2_bag`을 사용해서 test data에 대한 예측 및 분류를 실시하고 결과를 평가해 보자. 
+
+```{r}
+pred2_bag <- predict(m2_bag, newdata = test_M) 
+confusionMatrix(data = pred2_bag, reference = test_M$lfp, 
+                positive = "yes", mode = "everything")
+```
+
+
+## Random Forest {#section-rf}
+
+\@ref(section-bagging)절에서 살펴본 bagged tree 모형은 bootstrap으로 생성된 다수의 training data를 대상으로 tree 모형을 적합하고 통합하여 최종 예측을 실시하는 방법으로써 single tree 모형보다 예측 분산을 많이 낮출 수 있다는 장점이 있다.
+하지만 나름의 한계가 있는데, 그것은 bootstrap으로 생성된 training data 사이에는 유사성이 존재하기 때문에 
+모든 training data의 tree 모형 구조가 몇몇 중요한 설명변수에 의하여 공통적으로 결정되어 거의 비슷해질 가능성이 높다는 점이다.
+비슷한 구조의 tree 모형을 통합하면 예측 결과 사이의 상관관계를 높이는 효과가 있기 때문에, 분산을 더 낮추기 위해서는 tree 모형 사이의 상관관계를 더 낮추어야 한다. 
+
+Random forest는 bagging과 동일하게 bootstrap으로 생성된 training data를 대상으로 tree 모형을 적합하고 통합하여 예측을 실시하는 방법이다. 
+차이점은 통합되는 tree 모형 사이에 상관관계를 더 낮출 수 있는 방법이 적용된다는 점이다.
+Tree 모형의 building 과정은 설명변수의 공간 분할로 이루어지는데, 
+매번 분할을 실시할 때마다 설명변수 중 임의로 추출한 $m$ 개의 설명변수만을 대상으로 최적 분할을 실시하게 되면 중요 변수가 제외되어 다른 구조의 tree 모형이 생성될 가능성이 있다. 
+이렇게 되면 통합되는 tree 모형 사이에 상관관계를 많이 낮출 수 있어서 예측 분산이 더 작아질 수 있게 된다.
+
+**$\bullet$ `caret`에 의한 Random Forest**
+
+`caret`에서 함수 `train()`으로 random forest를 실행하기 위해서는 패키지 `randomForest`가 설치되어야 하며,
+`method = 'rf'`를 지정해야 한다. 
+
+- 예제 : `MASS::Boston`
+
+Regression tree 모형에 대한 random forest 예제로써 \@ref(section-reg-tree)절에서 살펴본 `MASS::Boston`을 사용해 보자. 
+
+```{r}
+data(Boston, package="MASS")
+```
+
+```{r}
+set.seed(123)
+train.id <- createDataPartition(Boston$medv, p = 0.7, list = FALSE)[,1]
+train_B <- Boston |> slice(train.id)
+test_B <- Boston |> slice(-train.id)
+```
+
+Tuning parameter는 임의로 선택할 설명변수의 개수인 `mtry`이며 `tuneLength`로 적용될 grid의 길이를 조절한다. 
+Bootstrap sample의 개수는 `ntree`로 조절하는데, 디폴트는 `ntree = 500`이다. 
+`importance`에는 변수 중요도의 계산이 필요하면 `TRUE`를 지정해야 하는데, 적합되는 tree 모형의 개수가 많기 떄문에 시간이 더 걸리게 된다.
+
+```{r}
+ctrl <- trainControl(method="cv", number=10)
+```
+
+```{r}
+set.seed(123)
+m1_rf <- train(medv ~ ., data = train_B, 
+               method = "rf", tuneLength = 5,
+               importance = TRUE, trControl = ctrl)
+```
+
+모형의 적합 결과를 살펴보자. 
+
+```{r}
+m1_rf
+```
+
+Tuning parameter인 `mtry`에 따른 RMSE의 변화를 그래프로 나타내자. 
+
+```{r m1-rf-mtry, fig.cap="`Boston` 자료에 대한 Random Forest의 `mtry`에 따른 RMSE 변화"}
+ggplot(m1_rf)
+```
+
+모형 `m1_rf`의 변수 중요도를 측정해서 그래프로 표현해 보자. 
+
+```{r m1-rf-varimp, fig.cap="`Boston` 자료에 대한 Random Forest의 변수 중요도"}
+varImp(m1_rf) |> 
+  ggplot()
+```
+
+Test data에 대한 예측을 실시하고 평가해 보자. 
+
+```{r}
+pred_rf <- predict(m1_rf, test_B)
+defaultSummary(data.frame(pred = pred_rf, obs = test_B$medv))
+```
+
+예측 결과를 그래프로 나타내자.
+
+```{r m1-rf-predict, fig.cap="`Boston` 자료에 대한 Random Forest의 예측 결과"}
+tibble(pred = pred_rf, obs = test_B$medv) |> 
+  ggplot(aes(x = obs, y = pred)) +
+  geom_point() +
+  geom_abline(intercept = 0, slope = 1) +
+  labs(x = "Observed data", y = "Predicted data")
+```
+
+
+- 예제 : `carData::Mroz`
+
+Classification tree 모형에 대한 Random Forest 예제로써 \@ref(section-classification-tree)절에서 살펴본 `carData::Mroz`을 사용해 보자.
+
+```{r}
+data(Mroz, package="carData")
+```
+
+```{r}
+set.seed(123)
+x.id <- createDataPartition(Mroz$lfp, p = 0.8, list = FALSE)[,1]
+train_M <- Mroz |> slice(x.id)
+test_M <- Mroz |> slice(-x.id)
+```
+
+Random Forest 모형을 적합해 보자.
+
+```{r}
+ctrl <- trainControl(method = "cv", number = 10)
+```
+
+```{r}
+set.seed(123)
+m2_rf <- train(lfp ~ ., data = train_M, 
+               method = "rf", tuneLength = 5, 
+               importance = TRUE, trControl = ctrl)
+```
+
+적합 결과를 확인해 보자.
+
+```{r}
+m2_rf
+```
+
+Tuning parameter인 `mtry`의 값에 따른 모형 `m2_rf`의 CV Accuracy의 그래프를 작성해 보자.
+`mtry = 2`에서 최대값을 갖고 있다.
+
+```{r m2-rf-mtry-1, fig.cap="`Mroz` 자료에 대한 Random Forest의 `mtry`에 따른 Accuracy의 변화"}
+ggplot(m2_rf)
+```
+
+모형 `m2_rf`는 Accuracy를 근거로 선택된 모형이다. 
+다른 평가 측도인 F1 score를 근거로 모형을 선택해 보자.
+
+```{r}
+ctrl_1 <- trainControl(method = "cv", number = 10,
+                         classProbs = TRUE,
+                         summaryFunction = prSummary)
+```
+
+```{r}
+set.seed(123)
+m21_rf <- train(lfp ~ ., data = train_M, 
+                method = "rf", tuneLength = 5,
+                metric = "F",
+                trControl = ctrl_1)
+```
+
+적합 결과를 확인해 보자.
+
+```{r}
+m21_rf
+```
+
+Tuning parameter인 `mtry`의 값에 따른 모형 `m21_rf`의 CV F1 score의 그래프를 작성해 보자.
+`mtry = 4`에서 최대값을 갖고 있다.
+
+```{r m2-rf-mtry-2, fig.cap="`Mroz` 자료에 대한 Random Forest의 `mtry`에 따른 Accuracy의 변화"}
+ggplot(m21_rf)
+```
+
+모형 `m2_rf`와 `m21_rf`의 변수 중요도를 각각 측정해서 그래프로 나타내자. 
+
+```{r, echo=FALSE, fig.cap="`Mroz` 자료에 대한 Random Forest의 변수 중요도", fig.width=8}
+library(patchwork)
+p1 <- ggplot(varImp(m2_rf)) + ggtitle("Variable importance of m2_rf")
+p2 <- ggplot(varImp(m21_rf)) + ggtitle("Variable importance of m21_rf")
+p1 + p2
+```
+
+Test data에 대한 모형 `m2_rf`와 `m21_rf`의 예측을 실시하고 분류 성능을 평가해 보자.
+
+```{r}
+pred2_rf <- predict(m2_rf, test_M)
+pred21_rf <- predict(m21_rf, test_M)
+```
+
+```{r}
+confusionMatrix(data = pred2_rf, reference = test_M$lfp,
+                positive = "yes", mode = "everything")
+```
+
+```{r}
+confusionMatrix(data = pred21_rf, reference = test_M$lfp,
+                positive = "yes", mode = "everything")
+```
+
+
+## Boosting
+
+Bagging과 random forest는 decision tree 모형의 분산을 낮추기 위해 제안된 모형이다.
+공통적으로 적용되는 방식은 bootstrap으로 생성된 다수의 training data를 대상으로 tree 모형을 각각 적합하고 통합하여 최종 예측 결과를 산출하는 것이다. 
+Boosting도 decision tree 모형의 분산을 낮추기 위해 제안된 모형이며, 다수의 tree 모형을 적합하지만 전혀 다른 방법이 적용된다.
+우선 bootstrap을 사용하지 않기 때문에 여러 개의 독립된 tree 모형을 통합하는 과정이 없다. 
+대신 순차적인 통합 방식을 사용하는데, 우선 첫 번째 단계에서 원자료를 대상으로 단순한 형태의 tree 모형을 적합한다.
+단순한 형태의 tree 모형이란 작은 횟수의 분할이 이루어진 모형을 의미한다. 
+이어서 두 번째 단계에서는 원자료가 아닌 첫 번째 단계에서 생성된 잔차를 대상으로 다시 단순한 형태의 tree 모형을 적합한다. 
+이후 단계에서도 바로 전 단계 모형에서 생성된 잔차를 대상으로 단순한 형태의 tree 모형의 적합 과정을 반복한다.
+단순한 tree 모형은 정확도가 낮은 예측 모형이지만, 정확도가 낮은 여러 개의 모형을 순차적으로 통합하여 정확도가 높은 모형을 생성하는 것이 boosting의 기본 개념이다. 
+
+Boosting에는 몇 가지 다른 방식이 있는데, 여기에서는 Stochastic gradient boosting 기법에 대해 살펴보겠다.
+회귀 모형 $Y = f(X) + \varepsilon$ 에 대한 boosting 기법은 다음과 같다. 
+
+1. Tuning parameter인 분할 횟수 $d$ 와 반복 횟수 $B$, 그리고 $\lambda$ 값 지정 
+
+2. 반응변수의 평균 $\overline{y}$ 를 함수 $f(x)$ 의 첫 번째 추정값으로 지정: $\hat{f}(x) = \overline{y}$
+
+3. 다음의 절차를 $b = 1, \ldots, B$ 에 대해 반복
+
+- Training data 중 일부분 선택
+
+- 관찰값과 현재 모형의 추정값 차이(잔차) 계산: $r = y - \hat{f}(x)$
+
+- 잔차를 대상으로 분할 횟수 $d$ 에 의한 regression tree 모형 $\hat{f}^{b}(x)$ 적합
+
+- 추정 모형 업데이트: $\hat{f}(x) \leftarrow \hat{f}(x) + \lambda \hat{f}^{b}(x)$
+
+최종 boosting 모형의 적합 결과는 다음과 같다. 
+
+\begin{equation}
+\hat{f}(x) = \sum_{b=1}^{B} \lambda \hat{f}^{b}(x)
+\end{equation}
+
+위에서 살펴본 boosting 절차에서 사용된 3가지 tuning parameter의 기능을 살펴보자.
+첫 번째 tuning parameter인 $d$ 는 tree 모형의 분할 횟수를 지정하는 것으로써,
+대부분 단순한 형태의 tree 모형을 적합하는 것이 좋은 결과를 보이는 것으로 알려져 있다. 
+$d=1$ 으로도 좋은 결과를 얻는 경우도 가끔 있다.  
+
+두 번째 tuning parameter인 $B$ 는 boosting 반복 횟수를 지정한다.
+큰 값을 지정할수록 training data에 대한 더 정확한 적합이 이루어지겠지만,
+지나치게 많은 반복을 실행하는 것은 overfitting의 가능성을 높이는 것이 된다. 
+
+세 번째 tuning parameter인 $\lambda$ 는 추정 모형의 업데이트 속도, 즉 learning rate를 조절하는 역할을 하는 shrinkage parameter이다.
+큰 값을 지정하면 작은 횟수의 반복으로도 정확도가 높은 모형을 빠르게 만들 수 있지만,
+overfitting의 가능성이 매우 높아질 수 있다. 
+가능한 작은 값을 지정하여 천천히 최적 모형을 만드는 것이 일반적으로 적용되는 방식이다. 
+
+**$\bullet$ `caret`에 의한 Stochastic Gradient Boosting**
+
+`caret`에서 함수 `train()`으로 stochastic gradient boosting을 실행하기 위해서는 패키지 `gbm`이 설치되어야 하며,
+`method = 'gbm'`를 지정해야 한다. 
+
+- 예제 : `MASS::Boston`
+
+Regression tree 모형에 대한 random forest 예제로써 \@ref(section-reg-tree)절에서 살펴본 `MASS::Boston`을 사용해 보자. 
+
+```{r}
+data(Boston, package="MASS")
+```
+
+```{r}
+set.seed(123)
+train.id <- createDataPartition(Boston$medv, p = 0.7, list = FALSE)[,1]
+train_B <- Boston |> slice(train.id)
+test_B <- Boston |> slice(-train.id)
+```
+
+함수 `train()`에서 사용되는 tuning parameter에는 boosting 반복 횟수를 지정하는 `n.trees`와 분할 횟수를 지정하는 `interaction.depth`, $\lambda$ 값을 지정하는 `shrinkage`, 그리고 terminal node를 구성하는 최소 자료 수를 지정하는 `n.minobsinnode`가 있다. 
+네 종류의 tuning parameter 값을 지정하는 방법은 `tuneLength`로 할 수 있지만, 
+사용자가 grid를 조절할 수 있는 `tuneGrid`를 사용할 수 있다. 
+
+먼저 `tuneLength`에 의한 grid 조절로 boosting 모형을 적합해 보자. 
+
+```{r}
+ctrl <- trainControl(method = 'cv', number = 10)
+```
+
+```{r}
+set.seed(123)
+m1_gbm <- train(medv ~ ., data = train_B,
+                method = 'gbm', tuneLength = 5,
+                trControl = ctrl, verbose = FALSE)
+```
+
+`verbose = FALSE`을 지정해서 추정 과정에 대한 출력을 생략했다. 
+`m1_gbm`의 적합 결과를 살펴보자. 
+
+```{r}
+m1_gbm
+```
+
+네 종류의 tuning parameter 중 `shrinkage`와 `n.minobsinnode`는 0.1과 10으로 각각 고정되었음을 알 수 있다.
+Tuning parameter `n.trees`와 `interaction.depth`의 값에 따른 CV RMSE의 변화를 그래프로 나타내자. 
+
+```{r m1-gbm-tune, fig.cap="`Boston` 자료에 대한 boosting 모형의 `n.trees`와 `interaction.depth`의 값에 따른 CV RMSE의 변화"}
+ggplot(m1_gbm)
+```
+
+`m1_gbm`에서 최적 tuning parameter 값은 다음과 같이 알아볼 수 있다. 
+
+```{r}
+m1_gbm$bestTune
+```
+
+`tuneGrid`를 이용하여 사용자가 지정한 tuning parameter의 grid를 근거로 모형을 적합해 보자.
+`tuneGrid`에는 네 종류 tuning parameter의 grid로 구성된 데이터 프레임을 지정해야 하는데,
+함수 `expand.grid()`를 사용하는 것이 편하다. 
+
+```{r}
+grid <- expand.grid(n.trees = seq(50, 350, by = 50), 
+                    interaction.depth = 2:7, 
+                    shrinkage = c(0.01, 0.1),
+                    n.minobsinnode = c(5, 10))
+```
+
+```{r}
+head(grid)
+tail(grid)
+```
+
+`tuneGrid`에 의한 모형을 적합해 보자. 
+
+```{r}
+set.seed(123)
+m2_gbm <- train(medv ~ ., data = train_B, 
+                method = 'gbm', tuneGrid = grid,
+                trControl = ctrl, verbose = FALSE)
+```
+
+`m2_gbm`에는 4종류 tuning parameter의 조합에 따른 168번의 모형 적합 결과가 입력되어 있다. 
+Tuning parameter 값에 따른 모형 `m2_gbm`의 CV RMSE의 변화를 그래프로 나타내자. 
+
+```{r m2-gbm-tune, fig.cap="`Boston` 자료에 대한 boosting 모형의 4 종류 tuning parameter 값에 따른 CV RMSE의 변화"}
+ggplot(m2_gbm)
+```
+
+`m2_gbm`에서 최적 tuning parameter 값을 알아보자.  
+
+```{r}
+m2_gbm$bestTune
+```
+
+두 모형 `m1_gbm`과 `m2_gbm`을 사용해서 test data에 대한 예측을 실시하고 결과를 평가해 보자. 
+
+```{r}
+pred1_gbm <- predict(m1_gbm, test_B)
+pred2_gbm <- predict(m2_gbm, test_B)
+```
+
+```{r}
+defaultSummary(data.frame(pred = pred1_gbm, obs = test_B$medv))
+defaultSummary(data.frame(pred = pred2_gbm, obs = test_B$medv))
+```
+
+두 모형의 예측 결과를 그래프로 나타내 보자. 
+
+```{r m12-gbm-predict, fig.cap="`Boston` 자료에 대한 boosting 모형의 예측 결과", echo=FALSE, fig.width=8}
+library(patchwork)
+p1 <- tibble(pred = pred1_gbm, obs = test_B$medv) |> 
+  ggplot(aes(x = obs, y = pred)) +
+  geom_point() +
+  geom_abline(aes(intercept = 0, slope = 1)) +
+  labs(x = "Observed data", y = "Predicted data", title = "tuneLength = 5")
+
+p2 <- tibble(pred = pred2_gbm, obs = test_B$medv) |> 
+  ggplot(aes(x = obs, y = pred)) +
+  geom_point() +
+  geom_abline(aes(intercept = 0, slope = 1)) +
+  labs(x = "Observed data", y = "Predicted data", title = "tuneGrid")
+p1 + p2
+```
+
+
+- 예제 : `carData::Mroz`
+
+Classification tree 모형에 대한 Boosting 예제로써 \@ref(section-classification-tree)절에서 살펴본 `carData::Mroz`을 사용해 보자.
+
+```{r}
+data(Mroz, package="carData")
+```
+
+```{r}
+set.seed(123)
+x.id <- createDataPartition(Mroz$lfp, p = 0.8, list = FALSE)[,1]
+train_M <- Mroz |> slice(x.id)
+test_M <- Mroz |> slice(-x.id)
+```
+
+`tuneLength`에 의한 모형 적합을 진행해 보자. 
+
+```{r}
+ctrl <- trainControl(method='cv', number=10)
+```
+
+```{r}
+set.seed(123)
+m3_gbm <- train(lfp ~ ., data = train_M,
+                method = 'gbm', tuneLength = 10,
+                trControl = ctrl, verbose = FALSE)
+```
+
+`m3_gbm`에서 최적 tuning parameter 값을 알아보자.  
+
+```{r}
+m3_gbm$bestTune
+```
+
+네 종류의 tuning parameter 중 `shrinkage`와 `n.minobsinnode`는 0.1과 10으로 각각 고정되어 있다. 
+`n.trees`와 `interaction.depth`의 값에 따른 CV RMSE의 변화를 그래프로 나타내자. 
+
+```{r m3-gbm-tune, fig.cap="`Mroz` 자료에 대한 boosting 모형의 `n.trees`와 `interaction.depth`의 값에 따른 CV Accuracy의 변화", warning=FALSE}
+ggplot(m3_gbm)
+```
+
+`tuneGrid`를 이용하여 사용자가 지정한 tuning parameter의 grid를 근거로 모형을 적합해 보자.
+
+```{r}
+grid <- expand.grid(n.trees = seq(50, 450, by = 50),
+                    interaction.depth = 1:10,
+                    shrinkage = c(0.01, 0.1),
+                    n.minobsinnode = c(5, 10))
+```
+
+```{r}
+set.seed(123)
+m4_gbm <- train(lfp ~ ., data = train_M,
+                method = 'gbm', tuneGrid = grid,
+                trControl = ctrl, verbose = FALSE)
+```
+
+Tuning parameter 값에 따른 모형 `m4_gbm`의 CV Accuracy의 변화를 그래프로 나타내자. 
+
+```{r m4-gbm-tune, fig.cap="`Boston` 자료에 대한 boosting 모형의 4 종류 tuning parameter 값에 따른 CV Accuracy의 변화"}
+ggplot(m4_gbm)
+```
+
+`m4_gbm`에서 최적 tuning parameter 값을 알아보자.  
+
+```{r}
+m4_gbm$bestTune
+```
+
+Test data에 대한 모형 `m3_gbm`과 `m4_gbm`에 의한 예측을 실시하고 분류 성능을 평가해 보자. 
+
+```{r}
+pred3_gbm <- predict(m3_gbm, test_M)
+pred4_gbm <- predict(m4_gbm, test_M)
+```
+
+```{r}
+confusionMatrix(data = pred3_gbm, reference = test_M$lfp, 
+                positive = "yes", mode = "everything")
+```
+
+```{r}
+confusionMatrix(data = pred4_gbm, reference = test_M$lfp, 
+                positive = "yes", mode = "everything")
+```
+
+
+
+
+

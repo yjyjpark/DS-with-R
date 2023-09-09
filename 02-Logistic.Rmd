@@ -1,0 +1,1306 @@
+# 로지스틱 회귀모형 {#chapter-Logistic}
+
+선형회귀모형에서는 반응변수가 연속형 변수임을 가정하고 있다. 
+그러나 범주형 변수를 반응변수로 하여 회귀모형을 설정해야 하는 경우도 많이 있는데, 
+이런 상황에서 선형회귀모형을 그대로 사용해도 괜찮은지 여부를 확인할 필요가 있으며, 
+만일 문제가 있다면 대안으로 사용할 수 있는 모형이 무엇인지 알아보아야 한다. 
+
+범주형 변수가 "성공", "실패"와 같이 2개의 범주만을 갖는 경우에는 이항변수, 범주의 개수가 3개 이상인 경우에는 다항변수라고 부른다. 
+이 장에서는 이항변수를 반응변수로 설정해야 하는 경우에 적용할 수 있는 로지스틱 회귀모형에 대하여 살펴보겠다.
+
+## 이항반응변수에 대한 선형회귀모형의 한계 {#limitation}
+
+반응변수 $Y$ 와 설명변수 $X_{1}, \ldots, X_{k}$ 로 구성된 선형회귀모형은 다음과 같이 표현된다. 
+
+\begin{equation}
+Y = \beta_{0} + \beta_{1} + \cdots + \beta_{k}X_{k} + \varepsilon
+(#eq:linear-reg)
+\end{equation}
+단, $\varepsilon \sim N(0, \sigma^{2})$.
+
+반응변수의 조건부 기대값은 다음과 같다.
+
+\begin{equation}
+E(Y|X)=\beta_{0}+\beta_{1}X_{1}+\cdots+\beta_{k}X_{k}
+(\#eq:ex-linear-reg)
+\end{equation}
+
+이항반응변수 $Y$ 는 "성공" 범주에 속하면 1, "실패" 범주에 속하면 0을 값으로 갖는 것이 일반적으로 적용되는 방식이다. 
+두 개의 값만을 가질 수 있는 이항반응변수를 모형 \@ref(eq:linear-reg)으로 설명할 때 발생할 수 있는 첫 번째 문제는 오차항 $\varepsilon$ 이 $N(0,\sigma^{2})$ 의 분포를 한다는 가정을 만족시킬 수 없다는 것이다. 
+
+두 번째 문제는 반응변수의 조건부 기대값 $E(Y|X)$ 와 설명변수의 선형결합인 $\beta_{0}+\beta_{1}X_{1}+\cdots+\beta_{k}X_{k}$ 의 범위가 일치하지 않는다는 것이다.
+이항반응변수 $Y$ 는 베르누이 분포를 따른다고 할 수 있는데, 이 경우 조건부 기대값은 다음과 같이 계산된다. 
+
+\begin{align*}
+E(Y|X) &= 1 \cdot P(Y=1|X) + 0 \cdot P(Y=0|X) \\ 
+       &= P(Y=1|X)
+\end{align*}
+
+즉, 이항반응변수의 조건부 기대값은 반응변수가 1이 될 확률이 되며, 따라서 범위는 $(0,1)$ 이 된다.
+반면에 설명변수가 취할 수 있는 값에 특별한 제약조건이 없다면 설명변수의 선형결합 $\beta_{0}+\beta_{1}X_{1}+\cdots+\beta_{k}X_{k}$ 의 범위는 $(-\infty, \infty)$ 가 되기 때문에,
+$E(Y|X)$ 와 설명변수의 선형결합이 취하는 값의 범위는 일치하지 않게 된다.   
+
+선형회귀모형을 사용하여 이항반응변수가 "성공" 범주에 속할 확률을 추정하게 되면, 어떠한 문제가 발생할 수 있는지 예제를 통해서 살펴보도록 하자.
+
+**$\bullet$ 예제 : `ISLR::Default`**
+
+패키지 `ISLR`의 데이터 프레임 `Default`는 신용카드 사용 금액을 매달 갚아가는 상황에 대한 모의자료이다. 
+변수 `default`는 연체 여부를 나타내는 요인으로 `"No"`와 `"Yes"`의 두 범주를 갖고 있는 이항반응변수이다.
+`student`는 학생 여부에 대한 요인이고, `balance`는 카드 사용 금액 중 갚고 남은 잔액, `income`은 소득을 나타낸다.
+
+```{r}
+data(Default, package = "ISLR")
+str(Default)
+```
+
+변수 `default`의 값을 `"No"`는 0으로, `"Yes"`는 1로 바꾸고, 
+`default`를 반응변수, `balance`를 설명변수로 하는 선형회귀모형을 적합하여 그 결과를 두 변수의 산점도에 함께 표시해 보자.
+요인 `default`를 함수 `as.numeric()`을 사용하여 숫자형으로 변환시키면 첫 번째 범주인 `"No"`가 1로, 두 번째 범주인 `"Yes"`가 2로 변하게 된다. 여기에 1을 더 빼서 `"No"`를 0으로, `"Yes"`를 1로 변환하였다.
+
+```{r 2-1, fig.cap="이항반응변수를 선형회귀모형으로 적합한 결과"}
+library(tidyverse)
+Default |> 
+  ggplot(aes(x = balance, y = as.numeric(default)-1)) +
+  geom_jitter(height = 0.005, width = 100) +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(y = "Probability of Default")
+```
+
+그림 \@ref(fig:2-1)에 표시된 파란색 회귀직선은 주어진 `balance`의 값에서 `default`가 1이 될 확률을 선형회귀모형으로 추정한 결과이다. 
+`balance`가 매우 작은 값을 갖는 영역에서 `default`가 1이 될 확률이 음으로 추정된 것을 볼 수 있다. 
+또한 회귀직선이 점들을 거의 설명하지 못하고 있음도 확인할 수 있다.
+이항반응변수에 대해서는 적절하지 않은 모형으로 보인다. 
+
+그림 \@ref(fig:2-2)는 로지스틱 회귀모형으로 `default`가 1이 될 확률을 추정한 결과이다. 
+선형회귀모형이 갖고 있던 두 가지 문제가 모두 해결된 것을 볼 수 있다.
+
+```{r 2-2, fig.cap="이항반응변수를 로지스틱 회귀모형에 적합한 결과"}
+Default |> 
+  ggplot(aes(x = balance, y = as.numeric(default)-1)) +
+  geom_jitter(height = 0.005, width = 100) +
+  geom_smooth(method = "glm", method.args = list(family = binomial), 
+              se = FALSE) +
+  labs(y = "Probability of Default")
+```
+
+함수 `geom_smooth()`에서 사용된 `method = "glm"`과 `family = binomial`에 대한 설명은 로지스틱 회귀모형의 적합에 사용되는 함수 `glm()`에 대한 소개에서 진행하겠다.
+
+
+## 로지스틱 회귀모형
+
+선형회귀모형을 사용하여 변수 `default`가 1이 될 확률을 추정한 결과에서 음의 값이 나온 이유는 \@ref(limitation)절에서 살펴본 데로 설명변수가 취할 수 있는 값의 범위가 반응변수의 기댓값이 취할 수 있는 값의 범위와 다르기 때문이다. 
+즉, 선형회귀모형에서는 $E(Y|X) = P(Y=1|X) = \beta_{0} + \beta_{1}X$ 로 설정되는데, 
+$0 \leq P(Y=1|X) \leq 1$ 이고, $-\infty < \beta_{0}+\beta_{1}X < \infty$ 이기 때문에 서로 범위가 맞지 않는다.
+
+이 문제는 $P(Y=1|X)$ 에 적절한 변환을 실시함으로써 해결을 할 수 있다. 
+먼저 반응변수 $Y$ 가 1이 될 사건에 대한 odds를 생각해 보자. 
+Odds의 범위는 0에서 무한대가 된다.
+
+\begin{equation}
+0 \leq \frac{P(Y=1|X)}{1-P(Y=1|X)} < \infty
+\end{equation}
+
+이어서 $Y$ 가 1이 될 사건에 대한 log odds 또는 logit 변환을 생각해 보자. 
+설명변수의 선형결합과의 범위 불일치 문제가 해결되었음을 알 수 있다.
+
+\begin{equation}
+-\infty < \log \left(\frac{P(Y=1|X)}{1-P(Y=1|X)}\right) < \infty
+\end{equation}
+
+$Y$ 가 1이 될 사건에 대한 logit 변환을 적용한 로지스틱 회귀모형은 다음과 같이 정의된다.
+
+\begin{equation}
+\log \left(\frac{P(Y=1|X)}{1-P(Y=1|X)}\right) = \beta_{0} + \beta_{1}X_{1} + \cdots + \beta_{k}X_{k}
+(#eq:logistic-1)
+\end{equation}
+
+반응변수가 1이 될 확률은 모형 \@ref(eq:logistic-1)의 inverse logit 변환으로 다음과 같이 표현된다. 
+
+\begin{equation}
+P(Y=1|X) = \frac{e^{\beta_{0} + \beta_{1}X_{1} + \cdots + \beta_{k}X_{k}}}{1+e^{\beta_{0} + \beta_{1}X_{1} + \cdots + \beta_{k}X_{k}}}
+\end{equation}
+
+
+**$\bullet$ 로지스틱 회귀식의 특징**
+
+설명변수가 한 개인 로지스틱 회귀모형을 대상으로 절편과 기울기를 나타내는 회귀계수의 역할을 살펴보자. 
+예를 들어, 반응변수가 1이 될 확률이 $P(Y=1|X)=e^{b0+b1X}/(1+e^{b0+b1X})$ 로 표현된다고 하자. 
+그림 \@ref(fig:2-2-a)의 첫 번째 그래프는 $b1=1$ 로 고정하고, $b0$ 의 값을 $-4, ~0, ~4$ 로 변화시켰을때 $P(Y=1|X)$ 의 값을 나타낸 것이고, 
+두 번째 그래프는 $b0 = 0$ 으로 고정하고, $b1$의 값을 $0.25, ~ 0.5, ~1$ 로 변화시켰을때 $P(Y=1|X)$ 의 값을 나타낸 것이다. 
+
+```{r 2-2-a, fig.cap="로지스틱 회귀계수의 역할", fig.width=8, echo=FALSE}
+library(patchwork)
+f <- function(x, b0, b1) exp(b0+b1*x)/(1+exp(b0+b1*x))
+base <- ggplot() + xlim(-10, 10)
+p1 <- base + 
+  stat_function(geom = "line", fun = f, args = list(b0 = -4, b1 = 1), linewidth = 1, 
+                aes(color = "b0 = -4,  ")) +
+  stat_function(geom = "line", fun = f, args = list(b0 = 0, b1 = 1), linewidth = 1,
+                aes(color = "b0 = 0,   ")) +
+  stat_function(geom = "line", fun = f, args = list(b0 = 4, b1 = 1), linewidth = 1,
+                aes(color = "b0 = 4")) +
+  labs(x = "X", y = "P(Y = 1)", color = NULL) +
+  theme(legend.position = "top", legend.text = element_text(size = 11, face = "bold"))
+p2 <- base + 
+  stat_function(geom = "line", fun = f, args = list(b0 = 0, b1 = 0.25), linewidth = 1, 
+                aes(color = "b1 = 0.25,  ")) +
+  stat_function(geom = "line", fun = f, args = list(b0 = 0, b1 = 0.5), linewidth = 1,
+                aes(color = "b1 = 0.5,  ")) +
+  stat_function(geom = "line", fun = f, args = list(b0 = 0, b1 = 1), linewidth = 1,
+                aes(color = "b1 = 1")) +
+  labs(x = "X", y = "P(Y = 1)", color = NULL) +
+  theme(legend.position = "top", legend.text = element_text(size = 11, face = "bold"))
+p1 + p2
+```
+
+로지스틱 회귀곡선은 절편이 증가함에 따라 왼쪽으로 이동되는 것을 알 수 있는데, 이것은 고정된 설명변수의 수준에서 절편이 증가함에 따라 반응변수가 1이 될 확률이 증가하는 것을 보여준다. 
+또한 기울기가 증가함에 따라 반응변수가 1이 될 확률이 급격하게 증가하는 것을 볼 수 있다. 
+
+
+### 모형 적합 {#logistic-reg-fitting}
+
+회귀모형의 적합이란 모형 \@ref(eq:logistic-1)에 포함된 회귀계수 $\beta_{0}, \beta_{1}, \ldots, \beta_{k}$ 의 추정을 의미한다. 
+반응변수 $Y$ 가 0 또는 1을 값으로 갖는 베르누이 분포를 하고 있기 때문에 회귀계수는 maximum likelihood estimation으로 추정을 할 수 있는데, 다만 우도함수의 형태가 방정식을 유도하여 회귀계수의 값을 구할 수 있는 형태가 아니기 때문에 수치적인 반복 계산으로 추정하게 된다.
+
+설정된 모형에 큰 문제가 없다면 대부분의 경우 몇 번의 반복으로 모수를 추정할 수 있다. 
+그러나 여러 번의 반복 계산을 수행하여도 수렴 기준을 충족하지 못해 결국 추정에 실패하는 경우도 있는데, 
+그 이유 중에 하나가 complete separation이다. Complete separation은 특정 설명변수의 선형결합으로 반응변수의 값이 완벽하게 분리되는 상태를 의미하는 것인데, 
+예를 들어 설명변수 $X$ 가 10 미만의 값을 가지면 반응변수 $Y$ 는 항상 0이 되고,
+$X$ 가 10 이상의 값을 가지면 $Y$ 는 항상 1이 된다면, 설명변수 $X$ 로 반응변수의 두 그룹이 완벽하게 분리되는 것이다. 
+Complete separation이 발생할 수 있는 몇 가지 상황이 있는데,
+먼저 범주형 설명변수의 특정 범주에 대해 반응변수가 모두 0 또는 1의 값을 갖는 경우이다. 
+예를 들어, 반응변수가 나이와 밀접하게 연관된 질환의 유무이고 설명변수에 나이를 그룹으로 구분한 범주형 변수가 포함되면, 특정 나이 그룹에서는 모두 질환이 있는 것으로 나타나지만, 질환이 전혀 없는 나이 그룹이 나타날 수 있는 것이다. 
+또한 희귀 사건을 반응변수로 다루고 있는 경우와 표본의 크기가 작은 경우에도 complete separation이 발생할 수 있다.
+
+로지스틱 회귀모형의 적합은 일반화선형모형(generalize linear model) 적합을 위한 함수 `glm()`으로 할 수 있다. 
+기본적인 사용법은 `glm(formula, family = binomial, data)`이다. 
+`formula`에는 ‘반응변수 ~ 설명변수’ 형식의 공식이 지정되는데, 반응변수의 유형은 0 또는 1을 값으로 갖는 숫자형 벡터이거나 요인이어야 한다. 
+요인인 경우에는 첫 번째 범주가 ‘실패’, 두 번째 범주가 ‘성공’으로 분류되어 ‘성공’ 확률을 추정하게 된다. 
+`family`는 일반화선형모형에서 반응변수의 분포 및 link function을 지정하는 것으로서 로지스틱 회귀모형의 경우에는 `binomial`을 지정해야 한다.
+
+
+**$\bullet$ 예제: ISLR::Default**
+
+\@ref(limitation)절에서 살펴본 `Default` 자료에서 `default`를 반응변수, `balance`와 `student`, 그리고 `income`을 설명변수로 하며, `default`가 두 번째 범주인 `"Yes"`과 되 홧률에 대한 로지스틱 회귀모형을 적합해 보자. 
+단, income은 $1,000 단위로 조절한다.
+
+먼저 산점도행렬을 작성해서 변수들 사이의 관계를 살펴보자.
+변수 `default`가 `"Yes"`인 경우가 매우 드물다는 것을 알 수 있다. 
+또한 `default`가 `"Yes"`와 `"No"`인 그룹에서 `balance`의 분포는 큰 차이를 보이는 반면에 `income`은 거의 비슷한 분포를 갖고 있다.
+
+```{r}
+data(Default, package = "ISLR")
+```
+
+```{r 2-3, fig.cap="`Default` 자료의 산점도행렬", fig.height=5, fig.width=7}
+Default <- Default |>
+  mutate(income = income/1000)
+GGally::ggpairs(Default, aes(fill = default), showStrips = TRUE)
+```
+
+이제 로지스틱 회귀모형을 적합해 보자. 모형의 주요한 적합 결과는 함수 `summary()`로 확인할 수 있다.
+
+```{r}
+fit <- glm(default ~ ., family = binomial, Default)
+summary(fit)
+```
+
+개별 회귀계수에 대한 유의성 검정 결과를 볼 수 있다. 
+가변수가 사용된 요인 `student`에 대해서는 `"No"` 그룹과 `"Yes"` 그룹 사이에 유의적인 차이가 있는 것으로 나타났고, `balance`도 유의적인 변수로 나타났다.
+
+마지막 부분에 deviance가 계산되어 있는데,
+deviance는 일반화선형모형의 적합도를 측정할 때 사용되는 통계량으로서 추정된 모형의 적합값과 실제 관찰값의 일치 정도를 측정한다고 할 수 있다. 
+Null deviance는 절편만 있는 모형과 주어진 자료를 완전하게 설명하는 완전모형(saturated model)과의 적합도 차이이고, residual deviance는 현재의 모형과 완전모형의 적합도 차이이다. 
+따라서 두 deviance의 차이는 현재 모형에 포함된 설명변수가 모형의 적합도 향상에 어느 정도 기여했는지를 측정할 수 있는 도구가 된다.
+즉, 만일 현재 모형에 $k$ 개의 설명변수가 포함되어 있다면, 현재 모형의 유의성 검정인 $H_{0}:\beta_{1} = \cdots = \beta_{k} = 0$ 에 대한 검정통계량으로 사용될 수 있다는 것이다. 
+두 deviance의 차이는 귀무가설이 사실일 때 $\chi^{2}$분포를 하고, 자유도는 두 모형을 구성하는 모수 개수의 차이이다.  
+
+현재 모형의 유의성 검정은 함수 `anova()`를 사용하여 다음의 방식으로도 실시할 수 있다. 
+귀무가설은 기각되며, 따라서 3개의 설명변수 중 적어도 하나는 유의한 변수라는 의미가 된다.
+
+```{r}
+fit_null <- glm(default ~ 1, family = binomial, Default)
+fit <- glm(default ~ ., family = binomial, Default)
+```
+
+```{r}
+anova(fit_null, fit, test = "Chisq")
+```
+
+
+**$\bullet$ 설명변수의 효과 분석**
+
+개별 설명변수의 효과 분석은 로지스틱 회귀모형에서도 중요한 의미를 가지고 있으나, 선형회귀모형의 경우와는 조금 다른 방식으로 이루어져야 한다. 
+선형회귀모형은 다른 변수가 고정된 상태에서 $X_{j}$ 를 한 단위 변화시키면 $E(Y|X)$ 가 $\beta_{j}$ 만큼 변동되는 구조를 가지고 있다. 
+반면에 로지스틱 회귀모형은 개별 설명변수의 효과를 odds ratio로 나타내야 하는 구조를 가지고 있다.
+즉, 로지스틱 회귀모형은 log odds에 대한 모형이다.
+
+\begin{align*}
+\log \left(\frac{P(Y=1|X)}{1-P(Y=1|X)}\right) &= \log \Omega (X) \\
+ &= \beta_{0} + \beta_{1}X_{1} + \cdots + \beta_{k}X_{k}
+\end{align*}
+
+이것을 odds에 대한 모형으로 변환시켜 보자.
+
+\begin{align*}
+\Omega(X) &= e^{\beta_{0} + \beta_{1}X_{1} + \cdots + \beta_{k}X_{k}} \\
+ &= e^{\beta_{0}} e^{\beta_{1}X_{1}} \cdots e^{\beta_{k}X_{k}}
+\end{align*}
+
+다른 변수는 모두 고정시키고 $X_{j}$ 만 $\delta$ 만큼 변화시킬 때의 odds는 다음과 같이 표현된다.
+
+\begin{equation}
+\Omega(X; X_{j}+\delta) = e^{\beta_{0}} e^{\beta_{1}X_{1}} \cdots e^{\beta_{j}(X_{j}+\delta)} \cdots e^{\beta_{k}X_{k}}
+\end{equation}
+
+
+다른 변수는 모두 고정시키고 $X_{j}$ 만 $\delta$ 만큼 변화시킬 때의 odds의 변화 정도는 $\Omega(X)$ 와 $\Omega(X; X_{j}+\delta)$ 의 비율인 odds ratio로 나타낼 수 있다. 
+
+\begin{equation}
+\frac{\Omega(X; X_{j}+\delta)}{\Omega(X)} = e^{\beta_{j}\delta}
+\end{equation}
+
+Odds ratio가 1보다 작은 값을 갖는 경우에는 해당 설명변수의 값을 증가시키면 반응변수가 ‘성공’ 범주가 될 odds가 감소하는 것이고, 1보다 큰 값을 갖는 경우에는 ‘성공’ 범주가 될 odds가 증가하는 것이 된다.
+
+`Default` 자료에서 적합된 로지스틱 회귀모형 `fit`에 포함된 각 설명변수의 odds ratio를 구해보자.
+`fit`을 함수 `coef()`에 입력해서 회귀계수를 추출하고,
+이어서 `exp()`로 변환시키면 odds ratio가 계산된다. 
+
+```{r}
+coef(fit) |> exp() |> round(6)
+```
+
+변수 `balance`의 값이 $1 증가하면 `default`가 `"Yes"`가 될 odds가 0.57% 증가하는 것으로 추정되며, 
+`student`의 경우에는 `"Yes"` 그룹이 `"No"` 그룹에 비해 `default`가 `"Yes"`가 될 odds를 (1-0.5237)*100%, 
+즉 47.63% 감소시키는 것으로 나타났다.
+
+Odds ratio에 대한 신뢰구간은 `fit`을 함수 `confint()`에 입력해서 회귀계수의 신뢰구간을 계산하고,
+이어서 `exp()`로 변환시키면 odds ratio에 대한 신뢰구간이 계산된다. 
+함수 `confint()`의 디폴트 `level`은 0.95이다. 
+
+```{r}
+confint(fit) |> exp() |> round(6)
+```
+
+odds ratio($e^{\beta_{j}}$)의 신뢰구간에 1이 포함된다는 것은 회귀계수($\beta_{j}$)의 신뢰구간에 0이 포함되는 것과 동일한 것이다. 따라서 변수 `income`은 5% 유의수준에서 비유의적이다.
+
+
+### 확률 예측
+
+로지스틱 회귀모형은 반응변수가 ‘성공’ 범주에 속할 확률을 추정하기 위한 회귀모형이다.
+회귀계수가 추정되면 $\pi(\mathbf{x}) = P(Y=1|\mathbf{x})$ 을 다음과 같이 추정할 수 있다. 
+
+\begin{equation}
+\hat{\pi}(\mathbf{x}) = \frac{e^{\hat{\beta}_{0} + \cdots + \hat{\beta}_{k}x_{k}}}{1+e^{\hat{\beta}_{0} + \cdots + \hat{\beta}_{k}x_{k}}}
+\end{equation}
+
+확률 예측은 함수 `predict()`로 할 수 있으며, 기본적인 사용법은 `predict(object, newdata, type = "response")`이다. 
+`object`에는 적합한 로지스틱 모형에 대한 `glm` 객체를 지정하고, 
+`newdata`에는 예측에 사용될 설명변수의 새로운 자료를 데이터 프레임의 형태로 지정한다. 
+`type`은 예측의 유형을 지정하는 것으로서 반응변수가 ‘성공’ 범주에 속할 확률을 예측하고자 하는 경우에는 반드시 `"response"`를 지정해야 한다.
+
+**$\bullet$ 예제: ISLR::Default**
+
+\@ref(logistic-reg-fitting)절의 예제에서 적합한 모형 `fit`을 대상으로 `balance`의 값이 $1,500이고, `income`이 $40,000, 그리고 `student`가 `"Yes"`와 `"No"`인 경우에 대하여 각각 `default`가 `"Yes"`일 확률을 추정해 보자.
+
+우선 예측에 사용될 설명변수의 새로운 데이터 프레임 `new_df`를 다음과 같이 설정한다.
+
+```{r}
+new_df <- tibble(student = c("Yes","No"), balance = 1500, income = 40)
+```
+
+이제 모형 `fit`을 대상으로 `new_df`에 대한 예측을 실시해 보자.
+
+```{r}
+predict(fit, newdata = new_df, type = "response")
+```
+
+이번에는 모형 추정에 사용된 기존의 자료를 대상으로 default가 Yes가 될 확률을 추정해서 그래프로 나타내 보자. 
+함수 `predict()`에서 `newdata`를 생략하면 기존 자료에 대한 확률이 예측된다.
+
+```{r 2-4, fig.cap="`student`와 `balance`에 따른 `default` 확률"}
+Default |> 
+  mutate(pred = predict(fit, type = "response")) |> 
+  ggplot(aes(x = balance, y = as.numeric(default)-1)) +
+  geom_jitter(height = 0.005, width = 100) +
+  geom_line(aes(x = balance, y = pred, color = student), linewidth = 1) +
+  labs(y = "Probability of default")
+```
+
+변수 `balance`의 값이 증가하면 `default`가 `"Yes"`가 될 확률이 증가하고 있다. 
+또한 주어진 `balance` 값에 대하여 `student`가 `"Yes"`인 그룹이 `"No"`인 그룹에 비하여 `default`가 `"Yes"`가 될 확률이 낮음을 알 수 있다. 
+
+## 변수선택 {#section-logistic-selection}
+
+선형회귀모형의 경우와 마찬가지로 로지스틱 회귀모형에서도 ‘최적’ 변수로 이루어진 모형을 찾는 것은 매우 중요한 작업이다.
+\@ref(section-selection)절에서 살펴본 선형회귀모형의 평가측도에 의한 best subset selection과 stepwise selection, 그리고 lasso 모형의 적용 과정 등이 로지스틱 회귀모형에도 큰 차이 없이 적용된다.
+다만 모형의 차이로 인하여 사용할 수 있는 평가 측도에 차이가 있는데, AIC, BIC와 \@ref(classification)절에서 살펴볼 accuracy, F1 score, AUC 등의 분류성능 평가에 관련된 측도가 로지스틱 회귀모형에 적용할 수 있는 평가 측도가 된다.
+
+변수선택에 사용될 함수는 stepwise selection과 lasso 모형의 경우에는 선형회귀모형의 경우와 동일하지만,
+best subset selection의 경우에는 `bestglm::bestglm()`를 사용해야 한다. 
+기본적인 사용법은 `bestglm(Xy, family = binomial, IC = c("BIC", "AIC"))`이다.
+`Xy`는 반응변수와 설명변수로 구성된 데이터 프레임인데, 반응변수가 마지막 열에 위치해야 한다. 
+`IC`는 변수선택 기준으로 사용되는 통계량으로서 `"BIC"`가 디폴트로 사용된다.
+
+**$\bullet$ 예제 `carData::Mroz`**
+
+`Mroz`는 미국 753명 여성을 대상으로 직업 참여율과 관련된 8개 항목을 조사한 자료이다. 
+
+```{r}
+data(Mroz, package = "carData")
+str(Mroz)
+```
+
+반응변수 `lfp`는 직업 유무를 나타내는 요인이고, 설명변수 `k5`는 5세 이하 자녀의 수,
+`k618`은 6세에서 18세 사이 자녀의 수, `age`는 여성의 나이, `wc`는 여성의 대학과정 등록 여부, 
+`hc`는 남편의 대학과정 등록 여부, `lwg`는 여성의 기대 수입의 로그값, `inc`는 여성을 제외한 가구원의 총소득이다.
+
+- Best subset selection
+
+함수 `bestglm::bestglm()`을 사용하여 설명변수의 모든 가능한 조합에 대하여 AIC 또는 BIC를 기준으로 모형을 선택해 보자. 
+`Mroz`에 적용하기 위해서 먼저 반응변수 `lfp`를 마지막 열로 이동한 데이터 프레임 `Xy`를 다음과 같이 생성하자.
+
+```{r}
+Xy <- Mroz |> 
+    relocate(lfp, .after = last_col())
+```
+
+이제 AIC와 BIC를 기준으로 각각 변수선택을 실시해 보자.
+
+```{r}
+library(bestglm)
+fit_bic <- bestglm(Xy, family = binomial)
+fit_aic <- bestglm(Xy, family = binomial, IC = "AIC")
+```
+
+BIC에 의한 선택 결과를 확인해 보자. 
+`fit_bic`의 요소 `Subsets`에는 설명변수의 개수가 $i=0, \ldots, k$ 인 모형 중 최적 모형의 적합결과가 입력되어 있으며, 그 중 BIC가 가장 작은 '최적' 모형은 변수 개수에 별표가 추가되어 있다. 
+
+```{r}
+fit_bic$Subsets
+```
+
+요소 `BestModel`에는 `lm` 객체 형태로 최적 모형의 적합 결과가 입력되어 있다.  
+```{r}
+fit_bic$BestModel
+```
+
+AIC에 의한 선택 결과도 확인해 보자. 
+객체 `fit_aic`에도 동일한 방식으로 결과가 입력되어 있다. 
+
+```{r}
+fit_aic$Subsets
+```
+
+```{r}
+fit_aic$BestModel
+```
+
+두 방법으로 동일한 변수가 선택된 것을 알 수 있다. 
+만일 설명변수가 많은 경우에는 `BestModel`를 구성하고 있는 설명변수의 이름을 추출해서 비교하는 것이 더 편리할 수 있다. 
+
+```{r}
+fit_aic$BestModel$term |> attr("term.labels") |> sort()
+fit_bic$BestModel$term |> attr("term.labels") |> sort()
+```
+
+
+- Stepwise selection
+
+함수 `MASS::stepAIC()`를 사용하여 stepwise selection에 의한 변수선택을 진행해 보자.
+진행 과정은 선형회귀모형의 경우와 동일하다. 
+
+```{r}
+library(MASS)
+fit_null <- glm(lfp ~ 1, family = binomial, Mroz)
+fit_full <- glm(lfp ~ ., family = binomial, Mroz)
+```
+
+AIC에 의한 단계적 선택을 진행해 보자. 
+
+```{r}
+fit1 <- stepAIC(fit_null, scope = list(upper = fit_full, lower = fit_null),
+                trace = FALSE)
+```
+
+```{r}
+fit2 <- stepAIC(fit_full, direction = "both", trace = FALSE)
+```
+
+BIC에 의한 단계적 선택을 진행해 보자.
+
+```{r}
+fit3 <- stepAIC(fit_null, scope = list(upper = fit_full, lower = fit_null),
+                trace = FALSE, k = log(nrow(Mroz)))
+```
+
+```{r}
+fit4 <- stepAIC(fit_full, direction = "both", trace = FALSE, k = log(nrow(Mroz)))
+```
+
+네 가지 방법이 모두 동일한 결과를 보여주고 있다. 
+
+```{r}
+fit1$term |> attr("term.labels") |> sort()
+fit2$term |> attr("term.labels") |> sort()
+fit3$term |> attr("term.labels") |> sort()
+fit4$term |> attr("term.labels") |> sort()
+```
+
+
+- Lasso 모형 적합
+
+함수 `glmnet::glmnet()`를 사용하여 lasso 모형을 적합해 보자. 
+설명변수로 이루어진 행렬을 함수 `model.matrix()`를 이용하여 생성하자. 
+
+```{r}
+X_Mroz <- model.matrix(lfp ~ ., Mroz)[,-1]
+```
+
+최적 $\lambda$ 값에 의한 로지스틱 lasso 모형을 함수 `cv.glmnet()`으로 적합해 보자. 
+로지스틱 모형의 설정은 `family = "binomial"`을 지정함으로써 가능하며,
+`type.measure`로 CV error measure를 지정할 수 있다. 
+로지스틱 모형에서 디폴트 measure는 `"deviance"`이며, \@ref(classification)절에서 살펴볼 분류 성능을 평가하는 측도 중 misclassification error는 `"class"`, ROC curve의 면적은 `"auc"`를 지정하면 사용할 수 있다.  
+
+```{r}
+library(glmnet)
+set.seed(123)
+cvfit_Mroz <- cv.glmnet(X_Mroz, Mroz$lfp, 
+                        family = "binomial",
+                        type.measure = "deviance")
+```
+
+CV error에 대한 결과를 모형 `cvfit_Mroz`의 내용과 그래프로 확인해 보자.
+
+```{r}
+cvfit_Mroz
+```
+
+```{r 2-4-1, fig.cap="`lambda`의 변화에 따른 CV error의 변화"}
+plot(cvfit_Mroz)
+```
+
+최적 $\lambda$ 값으로 lasso 모형의 회귀계수 추정 결과를 확인해 보자. 
+
+```{r}
+coef(cvfit_Mroz)
+```
+
+Best subset selection과 stepwise selection, 그리고 lasso 모형 모두 동일한 변수를 선택했다. 
+선택된 변수로 이루어진 모형은 다음과 같다. 
+
+```{r}
+fit1
+```
+
+로지스틱 회귀모형을 구성하고 있는 개별 설명변수들의 효과는 odds ratio로 설명할 수 있지만,
+그래프로 표현할 수 있다면 훨씬 효과적일 것이다. 
+모형 `fit1`에서 설명변수 `k5`와 `wc`가 반응변수 `lfp`가 `"yes"`가 될 확률에 미치는 영향을 그래프로 표현해 보자. 
+다른 설명변수 `age`, `lwg`와 `inc`는 각 변수의 평균값으로 고정하고,
+`wc`가 각각 `"yes"`와 `"no"`일 때, `k5`의 값이 0에서 4로 증가함에 따라 `lfp`가 `"yes"`가 될 확률이 어떻게 변화하는지 그래프로 나타내 보자. 
+먼저 확률 예측에 사용될 새로운 데이터를 구성해 보자.
+
+```{r}
+df1 <- Mroz |> 
+  summarise(across(c(age,lwg,inc), mean)) |>
+  expand_grid(k5 = 0:4, wc = c("yes", "no")
+              )
+```
+
+```{r}
+df1
+```
+
+이제 `df1`에 주어진 설명변수의 값에 대하여 `lfp`가 `"yes"`가 될 확률을 예측하고, 그 결과를 막대그래프로 나타내 보자.
+
+```{r 2-5-1, fig.cap="`k5`와 `wc`의 값에 따른 `lfp`가 `'yes'`가 될 확률의 변화"}
+df1 |> 
+    mutate(p1 = predict(fit1, newdata = df1, 
+                        type = "response")) |> 
+    ggplot() +
+    geom_col(aes(x = k5, y = p1, fill = wc), 
+             position = "dodge") +
+    labs(y = "Prob") 
+```
+
+`k5`의 값이 증가함에 따라 직업을 가질 확률이 매우 급격하게 감소하는 것을 볼 수 있다.
+또한 여성의 대학과정 등록한 여부가 직업을 가질 확률이 큰 영향을 주고 있음도 확인할 수 있다.
+
+이번에는 모형 `fit1`에서 설명변수 `k5`와 `wc`, 그리고 `lwg`의 영향력을 그래프로 표현해 보자. 
+설명변수 `age`와 `inc`는 평균으로 고정하고, 
+`wc`가 각각 `"yes"`와 `"no"`이고, `k5`의 값이 0~3이며, `lwg`가 (-2,3)의 값을 갖을 때,
+`lfp`가 `"yes"`가 될 확률이 어떻게 변화하는지 그래프로 나타내 보자. 
+먼저 확률 예측에 사용될 새로운 데이터를 구성해 보자.
+
+```{r}
+df2 <- Mroz |> 
+  summarise(across(c(age, inc), mean)) |> 
+  expand_grid(k5 = 0:3, wc = c("yes", "no"), 
+            lwg = seq(-2, 3, length = 50)
+            )
+```
+
+이제 `df2`에 주어진 설명변수의 값에 대하여 `lfp`가 `"yes"`가 될 확률을 예측하고, 그 결과를 선그래프로 나타내 보자.
+
+```{r 2-5-2, fig.cap="`k5`, `wc`와 `lwg`의 값에 따른 `lfp`가 `'yes'`가 될 확률의 변화", fig.width=8}
+df2 |> 
+  mutate(p2 = predict(fit1, newdata = df2, 
+                      type = "response")) |> 
+  ggplot() +
+  geom_line(aes(x = lwg, y = p2, color = factor(k5)), 
+            linewidth = 1) +
+  facet_wrap(vars(wc)) +
+  labs(color = "Number of Kids", y = NULL) +
+  ylim(0,1)
+```
+
+변수 `lwg`의 값에 따른 `lfp`가 `"yes"`가 될 확률을 선그래프로 표시하되, `k5`의 값에 따라 다른 색으로 표시했으며, 변수 `wc`는 faceting으로 효과를 비교했다.
+그림 \@ref(fig:2-5-2)와 같은 facet 그래프는 faceting 변수의 각 범주 내에서의 효과 비교는 수월하게 이루지지만, 범주 간의 효과 비교는 조금 어려운 측면이 있다. 예를 들어, `wc`가 `"no"`인 그룹과 `"yes"`인 그룹에서 `k5`가 0에 해당하는 두 곡선의 직접적인 비교가 어렵다는 것이다.
+
+따라서 변수 `wc`의 효과를 다르게 나타낼 수 있는 그래프를 함께 작성하는 것이 필요할 것이다. 
+`wc`를 시각적 요소 `linetype`에 매핑한 그래프를 작성해 보자. 
+
+```{r 2-5-3, fig.cap="`k5`, `wc`와 `lwg`의 값에 따른 `lfp`가 `'yes'`가 될 확률의 변화", fig.width=8}
+df2 |> 
+    mutate(p2 = predict(fit1, newdata = df2, 
+                        type = "response")) |> 
+    ggplot() +
+    geom_line(aes(x = lwg, y = p2, 
+                  color = factor(k5), linetype = wc), 
+              linewidth = 1) +
+    labs(color = "Number of Kids", linetype = "WC", 
+         y = NULL) +
+    ylim(0,1)
+```
+
+이번에는 모형 `fit1`에서 설명변수 `k5`와 `inc`, 그리고 `lwg`의 영향력을 그래프로 표현해 보자. 
+설명변수 `age`는 평균으로, `wc`는 `"yes"`인 경우로 고정하자.  
+`k5`의 값이 0, 1, 2, 3이며, `lwg`가 (-2, 3)의 값을 갖고, `inc`가 (0, 30)의 값을 갖을 때,
+`lfp`가 `"yes"`가 될 확률이 어떻게 변화하는지 그래프로 나타내 보자. 
+먼저 확률 예측에 사용될 새로운 데이터를 구성해 보자.
+
+```{r}
+df3 <- 
+  Mroz |> 
+  summarise(age = mean(age), wc = "yes") |> 
+    expand_grid(k5 = 0:3, inc = seq(0, 30, length = 50),
+                lwg = seq(-2, 3, length = 50)
+    )
+```
+
+연속형 변수 `inc`와 `lwg`의 값에 따라 `lfp`가 `"yes"`가 될 확률의 변화를 함께 나타낼 수 있는 그래프에는 Heatmap이 있으며, 함수 `geom_raster()`로 작성할 수 있다. 
+변수 `k5`의 효과는 faceting으로 나타내 보자. 
+
+```{r 2-5-4, fig.cap="`k5`, `inc`와 `lwg`의 값에 따른 `lfp`가 `'yes'`가 될 확률의 변화", fig.width=8, fig.height=5}
+df3 |>  
+    mutate(p3 = predict(fit1, newdata = df3, 
+                        type = "response")) |> 
+    ggplot() +
+    geom_raster(aes(x = lwg, y = inc, fill = p3)) +
+    scale_fill_viridis_c() +
+    facet_wrap(vars(k5), labeller = "label_both") +
+    labs(fill = "P(Y=1)")
+```
+
+변수 `inc`의 값이 낮아지고 `lwg`의 값이 증가함에 따라 `lfp`가 `"yes"`가 될 확률이 높아지고 있지만,
+`k5`의 값이 상승함에 따라 확률은 전반적으로 크게 떨어지는 것을 볼 수 있다. 
+
+
+## 회귀진단 {#section-logistic-diagnostic}
+
+선형회귀모형의 경우와 같이 로지스틱 회귀모형에서도 적합한 모형에 대한 회귀진단을 실시해야 한다. 
+선택한 모형이 주어진 자료를 잘 설명하고 있는지에 대한 확인이 필요한 것이다. 
+다만 선형회귀모형의 회귀진단에서 주로 사용됐던 잔차와는 조금 다른 형태의 잔차가 로지스틱 회귀모형에서 사용된다는 차이가 있다. 
+
+선형회귀모형에서 잔차 $e_{i}=\hat{y}_{i}-y_{i}$ 는 회귀모형의 오차 $\varepsilon_{i}$ 를 대신하는 역할을 하고 있지만, 로지스틱 회귀모형에서는 선형회귀모형처럼 가법모형 방식의 오차를 정의할 수 없다는 문제가 있다.
+따라서 로지스틱 회귀모형에서 잔차의 의미는 조금 다를 수밖에 없다. 
+
+로지스틱 회귀모형에서 사용되는 잔차에는 Pearson 잔차와 deviance 잔차가 있다. 
+먼저 Pearson 잔차 $r_{i}^{P}$ 는 다음과 같이 정의된다. 
+
+\begin{equation}
+r_{i}^{P}=\frac{y_{i}-\hat{\pi}_{i}}{\sqrt{\hat{\pi}_{i}(1-\hat{\pi}_{i})}}
+\end{equation}
+
+단, $\hat{\pi}_{i}$ 는 $\pi_{i} = P(Y_{i}=1|X)$ 의 추정값이다. 
+
+Deviance 잔차 $r_{i}^{D}$ 는 다음과 같이 정의된다. 
+
+\begin{equation}
+r_{i}^{D}=s_{i}\sqrt{-2 \left(y_{i}\log \hat{\pi}_{i} + (1-y_{i}) \log (1-\hat{\pi}_{i})  \right)}
+\end{equation}
+
+단, $s_{i}$ 는 $y_{i}=1$ 이면 1이고, $y_{i}=0$ 이면 0이다. 
+
+두 잔차의 제곱합은 모두 모형의 적합도를 나타내는 통계량이 된다. 
+회귀진단 과정에서는 잔차의 분포를 조금 더 좌우대칭에 가깝게 변형을 하기 위해 표준화를 시킨 잔차를 사용하기도 한다. 
+표준화 Pearson 잔차는 $r_{i}^{P}/\sqrt{1-h_{i}}$ 로 정의되고, 
+표준화 deviance 잔차는 $r_{i}^{D}/\sqrt{1-h_{i}}$ 로 정의된다. 
+단, $h_{i}$ 는 $i$ 번째 관찰값의 leverage이다. 
+
+영향력이 큰 관찰값의 탐지도 선형회귀모형의 경우와 유사한 방식으로 진행한다.
+Cook’s distance와 leverage가 중요한 통계량으로 사용된다. 
+다중공선성의 존재 여부도 선형회귀모형의 경우와 동일하게 확인할 필요가 있다.
+
+**$\bullet$ 예제:`carData::Mroz`**
+
+\@ref(section-logistic-selection)절에서 수행된 모든 변수선택은 동일한 모형을 결과로 보여주었다. 
+선정된 모형을 대상으로 회귀진단을 실시해 보자. 
+
+```{r}
+fit_full <- glm(lfp ~ ., family = binomial, Mroz)
+fit1 <- MASS::stepAIC(fit_full, direction = "both", trace = FALSE)
+```
+
+먼저 모형 `fit1`의 잔차 산점도를 작성해 보자. 
+로지스틱 회귀모형에 대한 잔차 산점도는 패키지 `car`의 함수 `residualPlots()`로 작성할 수 있다. 
+디폴트 잔차는 Pearson 잔차이며, deviance 잔차를 원하는 경우에는 `type = "deviance"`를 추가하면 된다. 
+
+실행 결과로 각 설명변수와 Pearson 잔차 (또는 deviance 잔차)의 산점도가 작성되는데, 설명변수가 요인인 경우에는 상자그림이 작성된다. 
+또한 설명변수의 선형결합인 $\hat{\beta}_{0} + \hat{\beta}_{1}x_{1} + \cdots + \hat{\beta}_{k}x_{k}$ 와 
+잔차의 산점도가 마지막 그래프로 작성된다. 
+
+```{r 2-6, fig.cap="함수 `residualPlots()`에 의한 회귀진단", fig.height=5}
+library(car)
+residualPlots(fit1)
+```
+
+그림 \@ref(fig:2-6)에서 볼 수 있는 잔차 산점도는 선형회귀모형의 경우처럼 0을 중심으로 일정한 폭의 영역에 무작위로 흩어져 있는 것과는 많이 다른 모습이다. 
+그것은 반응변수가 0이면 잔차가 음수가 되고, 반응변수가 1이면 양수가 되는 관계가 있기 때문이다. 
+각 패널에 추가된 마젠타(magenta) 색의 실선은 국소다항회귀를 나타내는 것으로서 0 근처에서 수평선을 유지해야 한다. 
+만일 명백한 곡선의 형태가 나타난다면 해당 변수의 적합에 문제가 있음을 보여주는 것이 된다. 
+만일 표준화 Pearson 잔차나 스튜던트화 Pearson 잔차를 대신 사용하고자 한다면 `type = "rstandard"` 또는 `type = "rstudent"`를 입력하면 된다.
+
+그래프와 더불어 출력된 검정 결과는 숫자형 변수의 curvature test로서, 각 설명변수의 2차항을 추가한 각각의 모형에서 추가된 2차항 변수의 유의성을 검정한 것이다. 
+변수 `lwg`의 경우, 추가된 2차항이 유의한 것으로 나타났는데, 잔차 산점도에서도 곡선이 나타난 것으로 보아 2차항을 모형에 포함시켜 확인할 필요가 있는 것으로 보인다. 
+기존의 모형에 변수를 추가하거나 제외하는 작업은 함수 `update()`로 하는 것이 더 편리하다. 
+모형 `fit1`을 대상으로 기존의 모형`(. ~ .)`에 `I(lwg^2)`을 추가`(. ~ . + I(lwg^2))`하는 것이 된다.
+
+```{r}
+fit2 <- update(fit1, . ~ . + I(lwg^2))
+```
+
+```{r}
+summary(fit2)
+```
+
+모형에 추가된 `lwg`의 2차항은 유의한 것으로 나타났는데,
+변수를 추가함으로 해서 모형의 적합도가 얼마나 향상됐는지는 모형의 AIC와 BIC를 비교해 보면 알 수 있다. 
+또한 이 변수가 추가되면서 `wc`가 비유의적인 변수가 되었는데,
+모형의 적합도에는 큰 차이가 있을 것으로 보이지는 않지만 비유의적인 변수를 제외한 모형도 비교해 보자. 
+
+```{r}
+fit3 <- update(fit2, . ~ . - wc)
+```
+
+```{r}
+AIC(fit1, fit2, fit3)
+```
+
+```{r}
+BIC(fit1, fit2, fit3)
+```
+
+AIC와 BIC에서 `fit2`와 `fit3`는 차이가 없는 모형임을 알 수 있다. 
+
+영향력이 큰 관찰값의 탐지는 패키지 `car`의 함수 `influencePlot()`으로 할 수 있다. 
+사용법 및 해석 방식은 선형회귀모형의 경우와 동일하다.
+
+```{r 2-7, fig.cap="함수 `influencePlot()`에 의한 회귀진단 그래프", fig.height=5}
+influencePlot(fit2)
+```
+
+다중공선성의 문제도 패키지 `car`의 함수 `vif()`로 확인해 보자.
+변수 `lwg`와 `I(lwg^2)`의 VIF 값이 크게 나왔는데, 이것은 다항회귀모형에서 나타나는 자연스러운 현상으로 볼 수 있다.
+
+```{r}
+vif(fit2)
+```
+
+
+## 분류성능 평가 {#classification}
+
+로지스틱 회귀모형은 분류 모형으로 매우 광범위하게 사용되고 있다. 
+이 절에서는 로지스틱 회귀모형의 분류성능을 평가하는 몇 가지 측도에 대해 살펴보도록 하자.
+
+변수선택과 회귀진단 과정을 통해 최적 로지스틱 회귀모형이 선정되면, 반응변수가 "성공" 범주에 속할 확률 $\pi(\mathbf{x}) = P(Y=1|\mathbf{x})$ 을 추정할 수 있게 된다.
+이어서 추정된 확률 $\hat{\pi}(\mathbf{x})$ 를 이용하여 각 관찰값을 다음과 같이 두 범주로 분류할 수 있게 된다.
+
+\begin{equation}
+\hat{y} = 
+\begin{cases}
+0, & \quad \text{if}~~ \hat{\pi}(\mathbf{x}) < d \\
+1, & \quad \text{if}~~ \hat{\pi}(\mathbf{x}) \geq d
+\end{cases}
+\end{equation}
+
+분류기준값 $d$ 는 0.5로 놓고 분류를 시행하는 것이 일반적이다.
+
+분류성능을 평가하기 위한 첫 번째 단계는 관찰값 $y$ 와 예측값 $\hat{y}$ 의 2차원 분할표인 confusion matrix를 작성하는 것이다. 
+$n$ 개의 자료를 대상으로 분류 작업을 실행하여 $y=0$ 인 자료 중에 $\hat{y} = 0$ 또는 $\hat{y} = 1$ 로 각각 분류된 자료의 개수와 $y=1$ 인 자료 중에 $\hat{y} = 0$ 또는 $\hat{y} = 1$ 로 각각 분류된 자료의 개수를 2차원 분할표 형태로 작성한 것이 confusion matrix이다.
+
+표 \@ref(tab:confusion)은 Machine Learning 분야에서 사용되는 용어를 사용하여 작성된 confusion matrix이다.
+Machine Learning 분야에서는 일반적으로 ‘성공’ 범주를 Event로, ‘실패’ 범주를 NonEvent로 표시를 한다. 
+또한 ‘성공’ 범주로 분류하면 Positive, ‘실패’ 범주로 분류하면 Negative로 표현하며, 분류 결과가 맞으면 True, 틀리면 False로 표현한다. 
+따라서 $y=0$ 인 자료를 $\hat{y} = 0$ 분류하면 True Negative(TN), $\hat{y} = 1$ 분류하면 False Positive(FP)로 표현하고,
+$y=1$ 인 자료를 $\hat{y} = 0$ 로 분류하면 False Negative(FN), $\hat{y} = 1$ 로 분류하면 True Positive(TP)로 표현한다.
+
+```{r confusion, echo=FALSE}
+library(kableExtra)
+my_tab <- bind_cols(Prediction = c("NonEvent", "Event"),
+                    NonEvent = c("True Negative", "False Positive"),
+                    Event = c("False Negative", "True Positive"))
+kable(my_tab, format = "html", caption = "Confusion matrix") |> 
+  kable_styling(bootstrap_options = "striped",
+                full_width = FALSE) |> 
+  add_header_above(c("", 'Observation' = 2))
+```
+
+
+### 분류성능 평가 측도
+
+**1) 정분류율(Accuracy rate)**
+
+정분류율은 예측값이 관찰값과 동일한 범주로 분류된 비율을 나타내는 것이다. 
+표 \@ref(tab:confusion)의 confusion matrix에서는 $(TN + TP)/n$ 으로 표현된다. 
+
+정분류율은 모형의 분류성능에 대한 기본적인 평가 측도로 사용되고 있으나, 문제점이 있는 평가 측도이어서 조심해서 사용해야 한다. 
+첫 번째 문제로 지적되는 것은 더 많이 관측된 범주의 비율보다 정분류율이 더 높아야 의미가 있는 측도가 된다는 점이다. 
+예를 들어 Event로 100개의 자료가 관측되었고, NonEvent로 50개의 자료가 관측된 경우에, 총 150개 자료를 모두 Positive로 단순 분류해도 정분류율은 100/150 = 0.67이 된다. 
+따라서 모형에 의한 정분류율이 더 많이 관측된 범주의 비율(No information rate)보다 작다면 사용할 의미가 없어지는 것이다. 
+
+두 번째 문제는 분류에서 발생되는 두 가지 오류에 대한 정보를 전혀 얻을 수 없는 측도라는 점이다.
+두 가지 분류 오류인 False Positive와 False Negative로 인한 cost가 다른 경우에 정분류율만으로 분류 결과를 평가하기 어렵다는 문제이다. 
+예를 들어 스팸 메일에 대한 분류 작업을 하는 경우, 중요한 메일이 스팸으로 분류되는 False Positive가 훨씬 중요한 오류가 될 것이다. 
+이런 경우 정분류율에서 발생되는 약간의 불이익을 감소하더라도 False Positive가 더 낮은 분류 모형을 사용하는 것이 바람직할 것이다.
+
+
+**2) 민감도(Sensitivity)와 특이도(Specificity)**
+
+민감도는 Event로 관측된 자료 중 Positive로 분류된 자료의 비율을 의미한다. 
+
+\begin{equation}
+sensitivity = \frac{TP}{FN+TP}
+\end{equation}
+
+민감도를 True Positive rate라고 할 수 있는데, 그것은 Event 범주에서 Positive로 잘 분류된 비율이기 때문이다.
+
+특이도는 NonEvent로 관측된 자료 중 Negative로 분류된 자료의 비율을 의미한다.
+
+\begin{equation}
+specificity = \frac{TN}{TN+FP}
+\end{equation}
+
+NonEvent 범주에서 Positive로 잘못 분류되는 비율을 False Positive 비율이라고 한다면, 특이도는 1-False Positive rate가 된다.
+
+민감도와 특이도는 한쪽이 증가하면 다른 쪽은 감소하는 trade-off의 관계를 가지고 있다. 
+True Positive를 높이는 것이 더 중요한 상황이라면 민감도를 판단 기준으로 사용해야하지만, 
+False Positive를 낮추는 것이 더 중요한 상황이라면 특이도를 판단 기준으로 사용해야 할 것이다. 
+따라서 True Positive와 False Positive의 상대적 중요도를 고려해서 분류기준점을 조절하는 것이 필요하다.
+
+**3) Precision과 F1 score**
+
+Precision은 Positive로 분류한 자료 중 Event 자료의 비율을 나타낸다. 
+
+\begin{equation}
+precision = \frac{TP}{TP+FP}
+\end{equation}
+
+F1 score는 Precision과 Recall이라고도 불리는 Sensitivity의 harmonic mean으로 정의된다. 
+
+\begin{equation}
+F1 = 2 \times \frac{precision \times recall}{precision + recall}
+\end{equation}
+
+F1 score는 False Positive와 False Negative의 영향력이 모두 반영된 측도로 볼 수 있으며, 
+따라서 단순한 정분류율보다 더 유용하게 사용되고 있다. 
+
+
+**4) ROC(Receiver Operating Characteristic) curve**
+
+ROC curve는 모든 분류 기준값 에 대해서 계산된 특이도와 민감도를 $(x,y)$ 좌표로 하여 작성된 그래프이다.
+그림 \@ref(fig:2-8)에 예시된 ROC curve를 볼 수 있다. 
+그래프의 좌측 하단은 분류기준값 $d$ 를 1로 설정한 지점으로서 모든 자료가 Negative로 분류되었고, 
+따라서 민감도가 0, 특이도가 1이 된 것이다. 
+이제 분류 기준값을 조금씩 낮추게 되면 특이도가 떨어지는 대신 민감도는 높아지게 되는데, 
+분류 정확도가 높은 모형이라면 곡선의 기울기가 매우 급격하게 상승하게 된다. 
+즉, 특이도를 조금만 희생시키면 민간도가 급격하게 좋아지게 되어서 전반적인 분류 정확도를 높일 수 있는 것이다. 
+그래프의 우측 상단은 분류기준값을 0으로 설정한 지점으로서 모든 자료가 Positive로 분류되었고, 
+따라서 민감도는 1, 특이도는 0이 된 것이다.
+
+```{r, echo=FALSE}
+library(pROC)
+```
+
+```{r 2-8, echo=FALSE, fig.cap="ROC curve", results='hide', fig.height=5, fig.width=5}
+roc(Mroz$lfp, predict(fit1, type = "response"), plot = TRUE)
+```
+
+ROC curve의 전반적인 모습을 보고 모형의 분류성능을 판단하는 것이 정확한 결론을 내는 방법이지만, 
+많은 분석을 실시하는 상황에서는 조금 더 간단한 방법이 필요하기도 한다. 
+분류 정확도가 높은 모형의 ROC curve는 기울기가 매우 급격하게 상승을 하는데, 
+이렇게 되면 ROC curve 아래 부분의 면적이 증가하게 된다. 
+따라서 ROC curve 아래 부분의 면적을 기준으로 분류 정확도를 판단하는 것이 가능한 것이다. 
+ROC curve 아래 부분의 면적을 AUC(Area Under the Curve)라고 하며, AUC 값이 더 큰 모형이 선호된다.
+
+ROC curve의 그래프에는 대부분 점선으로 대각선이 그려진다. 
+이 대각선에서는 민감도와 특이도 값을 더하면 1이 되는데, 
+이것은 True Positive rate이 False Positive rate과 같은 경우에 해당하는 상황이다. 
+즉, 분별력이 전혀 없는 모형이 되는 것이다. 
+만일 ROC curve가 대각선과 일치한다면 AUC는 0.5가 된다.
+
+
+**$\bullet$ 분류성능 평가 측도를 위한 함수**
+
+지금까지 살펴본 분류성능 평가 측도 중 정분류율과 민감도, 특이도 및 F1 score 등은 패키지 `caret`의 함수 `confusionMatrix()`로 구할 수 있다.  
+함수 `confusionMatrix()`의 기본적인 사용법은 `confusionMatix(data, reference, positive)`이다. 
+`data`에는 예측 결과를 요인으로 지정하고, `reference`에는 반응변수를 요인으로 지정해야 한다. 
+`positive`에는 반응변수의 요인 수준 중에 Event에 해당하는 수준을 지정해야 한다.
+
+ROC curve는 패키지 `pROC`의 함수 `roc()`로 작성할 수 있다.
+함수 `roc()`의 기본적인 사용법은 `roc(response, predictor, plot = TRUE, ... )`이다. 
+`response`에는 반응변수의 벡터를 지정하는데, 유형은 요인, 숫자, 문자 모두 가능하다. 
+`predictor`에는 ‘성공’ 범주에 속할 확률이 계산된 벡터를 지정해야 한다. 
+ROC curve의 그래프를 작성하려면 옵션 `plot`에 `TRUE`를 지정해야 한다.
+AUC의 계산은 `roc` 객체를 함수 `auc()`에 입력하면 계산된다.
+
+
+**$\bullet$ 예제 `carData::Mroz`**
+
+데이터 프레임 `Mroz`의 변수 `lfp`를 반응변수로 하고 나머지 변수를 설명변수로 하는 로지스틱 회귀모형을 적합해 보자.
+\@ref(section-logistic-selection)절과 \@ref(section-logistic-diagnostic)절의 예제에서는 `Mroz` 자료를 모두 사용하여 분석을 실시하였다. 
+그러나 예측모형을 만드는 것이 목적인 경우에는 전체 자료를 반드시 training data와 test data로 분리하고,
+training data만을 사용하여 '최적' 모형을 적합해야 한다. 
+Test data는 모형 적합 과정에서는 절대로 사용되면 안 되고, 선택된 모형에 대한 평가 목적으로만 사용되어야 한다. 
+
+예측모형 적합을 위한 첫 번째 단계인 자료 분리는 함수 `caret::createDataPartition()`으로 하겠다. 
+이 함수는 연속형 반응변수의 예측 상황인 \@ref(section-prediction)절에서 이미 효과적으로 사용한 함수이다.
+이항반응변수의 경우에는 반응변수의 두 범주의 비율이 전체 자료와 분리된 자료에서 모두 동일하게 유지되는 것이 필요한데, 이것은 층화추출이 이루어지면 가능하다.
+함수 `createDataPartition()`에 요인이 첫 번째 변수로 입력되면 요인의 각 범주에 대한 층화추출이 이루어진다.
+전체 자료의 80%를 training data로 분리하고, 20%의 자료는 test data로 분리하자. 
+
+```{r}
+data(Mroz, package = "carData")
+```
+
+```{r}
+library(tidyverse)
+library(caret)
+set.seed(123)
+x.id <- createDataPartition(Mroz$lfp, p = 0.8, list = FALSE)[,1]
+train_M <- Mroz |> slice(x.id)
+test_M <- Mroz |> slice(-x.id)
+```
+
+변수 `lfp`의 `"yes"`와 `"no"`의 비율을 `Mroz`와 `train_M`, `test_M`에서 각각 확인해 보자.
+
+```{r}
+Mroz |> count(lfp) |> mutate(p = n/sum(n))
+train_M |> count(lfp) |> mutate(p = n/sum(n))
+test_M |> count(lfp) |> mutate(p = n/sum(n))
+```
+
+이제 training data를 대상으로 '최적' 모형을 적합을 위한 변수선택을 진행해 보자. 
+변수선택은 best subset selection과 stepwise selection을 사용할 것이며, 
+먼저 best subset selection 방법을 함수 `bestglm()`으로 수행해 보자. 
+
+```{r}
+Xy <- train_M |> 
+  relocate(lfp, .after=last_col())
+```
+
+```{r}
+library(bestglm)
+fit1 <- bestglm(Xy, family = binomial)$BestModel
+fit2 <- bestglm(Xy, family = binomial, IC = "AIC")$BestModel
+```
+
+함수 `stepAIC()`로 stepwise selection에 의한 변수선택을 진행해 보자.
+
+```{r}
+fit_full <- glm(lfp ~ ., family = binomial, train_M)
+fit_null <- glm(lfp ~ 1, family = binomial, train_M)
+```
+
+```{r}
+library(MASS)
+fit3 <- stepAIC(fit_null, scope = list(upper = fit_full, lower = fit_null), 
+                trace = FALSE)
+fit4 <- stepAIC(fit_full, direction = "both", trace = FALSE)
+fit5 <- stepAIC(fit_null, scope = list(upper = fit_full, lower = fit_null),
+                trace = FALSE, k = log(nrow(train_M)))
+fit6 <- stepAIC(fit_full, direction = "both", trace = FALSE, k = log(nrow(train_M)))
+```
+
+선택된 모형의 변수선택 결과를 확인해 보자.
+
+```{r}
+fit1$terms |>  attr("term.labels") |>  sort()
+fit2$terms |>  attr("term.labels") |>  sort()
+fit3$terms |>  attr("term.labels") |>  sort()
+fit4$terms |>  attr("term.labels") |>  sort()
+fit5$terms |>  attr("term.labels") |>  sort()
+fit6$terms |>  attr("term.labels") |>  sort()
+```
+
+모두 동일한 모형임을 확인할 수 있다. 
+적합 내용을 확인해 보자. 
+
+```{r}
+fit_1 <- fit3
+```
+
+```{r}
+summary(fit_1)
+```
+
+선택된 모형 `fit_1`에 대한 검진을 실시해 보자. 
+함수 `residualPlots()`으로 잔차 산점도 및 curvature test를 실시해 보자. 
+
+```{r 2-10-1, fig.cap="모형 `fit_1`의 잔차 산점도", fig.height=5}
+library(car)
+residualPlots(fit_1)
+```
+
+변수 `lwg`의 경우에는 2차항을 포함시키는 것이 필요한 것으로 보인다. 
+변수 `inc`의 경우에도 curvature test에서는 p-값이 0.05보다 작게 나왔으나, 잔차 산점도에서는 자료의 개수가 많지 않은 부분에서만 약간의 비선형 관계가 보이고 있는 것으로 나타나서, 변수 `inc`의 2차항은 포함시키지 않는 것으로 하겠다.
+
+변수 `lwg`의 2차항을 포함한 모형을 적합시키고, 개별 회귀계수의 유의성을 95% 신뢰구간으로 확인해 보자. 
+
+```{r}
+fit_2 <- update(fit_1, . ~ . + I(lwg^2))
+confint(fit_2)
+```
+
+변수 `lwg`의 2차항이 포함되면서 비유의적인 변수가 된 `wc`를 제외한 모형도 적합시키고 비교 대상으로 고려하자.
+
+```{r}
+fit_3 <- update(fit_2, . ~ . - wc)
+```
+
+세 모형의 AIC와 BIC를 비교해 보자.
+
+```{r}
+AIC(fit_1, fit_2, fit_3)
+```
+
+```{r}
+BIC(fit_1, fit_2, fit_3)
+```
+
+큰 차이가 있는 `fit_1`은 제외하고 나머지 두 모형의 분류성능을 비교해서 최종 모형을 선택하기로 하자. 
+Training data에 대한 두 모형의 예측을 실시해 보자. 
+
+```{r}
+pred_2 <- predict(fit_2, type = "response")
+pred_3 <- predict(fit_3, type = "response")
+```
+
+모형 `fit_2`의 분류결과에 대한 평가 결과를 살펴보자.
+$d=0.5$ 를 분류 기준값으로 해서 함수 `if_else()`로 분류하고, 그 결과를 요인으로 전환하여 함수 `confusionMatrix()`에 적용시켜 보자. 
+
+```{r}
+train_M |> 
+  mutate(lfp_hat = factor(if_else(pred_2 >= 0.5, "yes", "no"))) |> 
+  with(confusionMatrix(data = lfp_hat, reference = lfp, 
+                       positive = "yes", mode = "everything"))
+```
+
+Confusion matrix와 정분류율, 민감도와 특이도 외에 많은 평가 측도의 값이 계산되어 있다. 
+다른 평가 측도의 자세한 설명은 함수 `confusionMatrix()`의 도움말에서 참고할 수 있다.
+
+모형 `fit_3`의 분류결과에 대한 평가 결과도 확인해 보자. 
+함수 `confusionMatrix()`의 많은 결과 중 다음과 같이 원하는 결과만을 선택해서 출력할 수도 있다.
+
+```{r}
+table_3 <- train_M |> 
+  mutate(lfp_hat = factor(if_else(pred_3 >= 0.5, "yes", "no"))) |> 
+  with(confusionMatrix(data = lfp_hat, reference = lfp, 
+                       positive = "yes", mode = "everything"))
+```
+
+함수 `confusionMatrix()`의 결과가 할당된 객체 `table_3`의 요소 `table`에는 confusion matrix가 입력되어 있다. 
+
+```{r}
+table_3$table
+```
+
+정분류율 및 민감도, 특이도, F1 score 등은 다음과 같이 확인할 수 있다. 
+
+```{r}
+table_3$overall[1]
+```
+
+```{r}
+table_3$byClass[c("Sensitivity", "Specificity", "Precision", "F1")]
+```
+
+이번에는 두 모형의 ROC curve를 작성해서 비교해 보자.
+
+```{r}
+library(pROC)
+```
+
+```{r 2-10-2, fig.height=5, fig.width=5, fig.cap="모형 `fit_2`의 ROC curve",  results='hide'}
+roc(train_M$lfp, pred_2, plot = TRUE)
+```
+
+```{r 2-10-3, fig.height=5, fig.width=5, fig.cap="모형 `fit_3`의 ROC curve",  results='hide'}
+roc(train_M$lfp, pred_3, plot = TRUE)
+```
+
+AUC만 비교하고자 하는 경우에는 함수 `auc()`에 `roc()`의 결과를 입력하면 된다.
+
+```{r}
+roc(train_M$lfp, pred_2, quiet = TRUE) |> auc()
+```
+
+```{r}
+roc(train_M$lfp, pred_3, quiet = TRUE) |> auc()
+```
+
+두 모형의 분류성능에는 큰 차이가 없으나, 
+AIC와 BIC, F1 score 등이 미세하게 좋은 `fit_3`를 최종 모형으로 선택하기로 하자. 
+
+```{r}
+fit_final <- fit_3
+summary(fit_final)
+```
+
+최종 모형 `fit_final`을 사용하여 test data를 대상으로 분류를 시행하고, 그 결과에 대한 평가를 실시해 보자.
+
+```{r}
+fc <- predict(fit_final, newdata = test_M, type = "response")
+```
+
+```{r}
+table_fc <- test_M |> 
+  mutate(lfp_hat = factor(if_else(fc >= 0.5, "yes", "no"))) |>
+  with(confusionMatrix(data = lfp_hat, reference = lfp, 
+                       positive = "yes", mode = "everything"))
+```
+
+```{r}
+table_fc$table
+```
+
+```{r}
+table_fc$overall[1]
+```
+
+```{r}
+table_fc$byClass[c(1,2,5,7)]
+```
+
+```{r}
+roc(test_M$lfp, fc, quiet = TRUE) |> auc()
+```
+
+Training data에 대한 분류 결과와 비교해 보면 AUC와 특이도, Precision는 오히려 더 좋은 결과를 보이고 있음을 알 수 있다.
+
+
+## 희귀사건의 분류
+
+이항반응변수의 두 범주 중 "성공" 범주는 우리가 관심을 갖고 있는 Event 범주이다. 
+대부분의 경우에 Event 범주와 NonEvent 범주의 발생 가능성이 서로 큰 차이가 나지 않는 자료를 대상으로 분석을 진행하게 된다. 
+하지만 Event 범주의 발생 가능성이 구조적으로 매우 낮을 밖에 없는 상황도 있다. 
+예를 들면, 어떤 특정 의약품의 부작용 발생, 온라인 광고에 대한 클릭, 그리고 카드의 부정 사용 등은 발생할 가능성은 상대적으로 매우 낮지만 상당히 중요한 사건이라 하겠다.
+
+이와 같이 "성공" 범주가 발생할 가능성이 매우 낮은 희귀사건인 경우에는 통계적 분류모형의 활용도에 큰 문제가 생길 수 있다. 
+즉, 통계모형에서 Event 범주에 대한 확률이 매우 낮게 추정될 가능성이 있고, 따라서 거의 모든 자료를 NonEvent로 분류하게 되어서 민감도가 너무 낮아지게 되는 것이다. 
+이렇게 되면 희귀사건을 제대로 분류하지 못하는 쓸모 없는 모형이 된다.
+
+희귀사건의 영향력을 낮출 수 있는 대안으로는 분류기준값을 변경하는 방법과 training data에 대한 sampling 방식을 변경하는 방법이 있다. 
+ 
+분류기준값을 변경하는 방법은 민감도와 특이도의 trade-off를 고려해서 선정한 최적의 분류기준값으로 민감도를 높이는 방법이며,
+로지스틱 회귀모형의 적합 과정 자체에는 어떠한 영향도 미치지 않는다.
+분류기준값은 일반적으로 $d=0.5$ 를 사용하는데, 0.5보다 더 작은 값을 사용하면 민감도를 높일 수 있다.
+
+희귀사건에 대한 분류 성능이 떨어지는 이유는 training data에 Event 범주에 대한 정보가 부족하기 때문이다.
+따라서 training data에서 Event 범주와 NonEvent 범주에 대한 정보량을 동일하게 만들어 줄 수 있다면, 희귀사건에 대한 분류 성능을 높일 수 있을 것이다. 
+두 범주의 정보량을 동일하게 만드는 방법은 다음과 같다. 
+
+1. Up-sampling : Event 범주 자료를 복원추출하여 case 확대 
+
+2. Down-sampling : NonEvent 범주 자료를 삭제하여 case 축소
+
+3. SMOTE(Synthetic Minority Oversampling TEchnique) : Event 범주의 자료를 기존 자료의 선형결합으로 생성하여 case 확대. 설명변수가 모두 숫자형 변수인 경우에 적용.
+
+예제를 가지고 구체적인 방법을 살펴보도록 하자. 
+
+**$\bullet$ 예제: `ISLR::Caravan`**
+
+패키지 `ISLR`의 `Caravan`은 어떤 보험 회사의 고객 5822명에 대한 자료이다. 
+86개 변수가 있으며, 마지막 변수인 `Purchase`는 고객의 캐러밴 보험 가입 여부를 나타낸 요인이다.
+
+```{r}
+data(Caravan, package = "ISLR")
+Caravan |> 
+  count(Purchase) |> 
+  mutate(p = n/sum(n))
+```
+
+캐러밴 보험에는 단 6%의 고객만이 가입한 상태이다. 분석 목적은 캐러밴 보험에 가입할 가능성이 높은 고객을 식별하는 것이다.
+분석의 첫 단계로서 자료 분리를 진행하자.
+
+```{r}
+set.seed(123)
+x.id <- createDataPartition(Caravan$Purchase, p = 0.7, list = FALSE)[,1]
+train_C <- Caravan |> slice(x.id)
+test_C <- Caravan |> slice(-x.id)
+```
+
+워낙 규모가 크기 때문에 변수선택 과정에 상당히 많은 시간이 소요되는 자료이다. 
+예제의 목적이 희귀사건에 대한 대안 탐색이어서 변수선택 및 검진 단계는 생략하고 그냥 모든 설명변수를 포함한 모형을 예측모형으로 사용하도록 하자. 
+
+```{r}
+fit <- glm(Purchase ~ ., family = binomial, train_C)
+```
+
+모형 `fit`으로 test data에 대한 예측 및 분류를 실시해 보자. 
+
+```{r}
+pred <- predict(fit, newdata = test_C, type = "response")
+yhat <- factor(if_else(pred >= 0.5, "Yes","No"))
+table <- confusionMatrix(reference = test_C$Purchase, data = yhat, positive = "Yes")
+```
+
+분류성능 평가를 위한 결과를 출력해 보자. 
+
+```{r}
+table$table
+```
+
+```{r}
+table$overall[1]
+```
+
+```{r}
+table$byClass[c(1,2,5,7)]
+```
+
+모형 `fit`은 `r nrow(test_C)`개의 test data 중 단지 `r rowSums(table$table)[[2]]`개만 "Yes" 범주로 분류하였고, 결과적으로 지나치게 낮은 민감도가 산출되었다. 
+분석의 목적이 보험에 가입할 가능성이 높은 고객을 식별해 내는 것인데, test data에서 실제 보험에 가입한 고객 중에 단 `r round(table$byClass[[1]]*100,1)`%만 제대로 식별했다는 것은 분석 목적에 전혀 부합하지 못한 분류 결과이다.
+
+민감도를 향상시키는 방법으로 먼저 SMOTE 방법을 적용해 보자. 
+SMOTE 방법이 적용된 training data의 생성은 함수 `smotefamily::SMOTE()`로 할 수 있다.
+기본적인 사용법은 `SMOTE(X, target, K = 5)`인데, 
+`X`는 숫자형 설명변수의 데이터 프레임 또는 행렬이고, `target`은 반응변수 벡터, 
+그리고 `K`는 자료 생성을 위한 nearest neighbors의 개수를 지정하는 것이다. 
+
+```{r}
+set.seed(123)
+library(smotefamily)
+smote <- SMOTE(dplyr::select(train_C, -Purchase), train_C$Purchase)
+```
+
+함수 `SMOTE()`로 생성된 객체 `smote`의 요소 중 `smote$data`에는 SMOTE 기법으로 생성된 자료가 데이터 프레임 형태로 입력되는데, 반응변수의 이름이 `class`로, 유형은 문자형으로 변경된다. 
+따라서 분석의 편리를 위해 반응변수의 이름을 원래의 이름으로 다시 변경하고, 유형도 요인으로 변경하자.  
+
+```{r}
+train_smote <- smote$data |> 
+  rename(Purchase = class) |> 
+  mutate(Purchase = factor(Purchase))
+```
+
+SMOTE 기법으로 생성된 training data를 사용하여 예측모형을 다시 적합해 보자. 
+
+```{r}
+fit_s <- glm(Purchase ~ ., family = binomial, train_smote)
+```
+
+모형 `fit_s`로 test data에 대한 예측 및 분류를 실시해 보자. 
+
+```{r}
+pred_s <- predict(fit_s, newdata = test_C, type = "response")
+yhat_s <- factor(if_else(pred_s >= 0.5, "Yes","No"))
+table_s <- confusionMatrix(reference = test_C$Purchase, data = yhat_s, positive = "Yes")
+```
+
+분류성능 평가를 위한 결과를 출력해 보자. 
+
+```{r}
+table_s$table
+```
+
+```{r}
+table_s$overall[1]
+```
+
+```{r}
+table_s$byClass[c(1,2,5,7)]
+```
+
+모형 `fit`에 의한 결과와 비교하면 정분류율과 특이도를 제외한 다른 측도는 모두 향상되었고, 
+특히 민감도는 크게 향상된 것을 볼 수 있다. 
+
+이번에는 모형 `fit`을 대상으로 분류기준값을 변경하는 방법을 적용해 보자. 
+모형 `fit`의 민감도는 `r round(table$byClass[[1]],3)`에 불구하지만, 특이도는 `r round(table$byClass[[2]],3)`으로 상당히 높은 값이다. 
+지나칠 정도로 높은 특이도를 조금 희생하더라도 민감도를 대폭 향상시킬 수 있는 방안으로 (민감도+특이도)를 최대화할 수 있는 최적 분류기준값을 찾아서 적용하는 것을 생각해 볼 수 있다. 
+
+여기에서 조심해야 하는 것은 최적 분류 기준값을 찾는 작업을 training data나 test data를 대상으로 진행해서는 안 된다는 것이다. 
+Training data를 대상으로 진행하면 overfitting의 문제가 생길 수 있으며, test data를 대상으로는 모형에 대한 어떠한 튜닝 작업도 진행해서는 안 되기 때문이다. 
+따라서 기존의 test data를 validation data와 test data로 다시 분리하고, validation data를 대상으로 최적 분류 기준값을 찾아야 할 것이다.
+`test_C`를 절반으로 분리해서 validation data `valid_C`와 test data `test_C1`으로 나누자.
+
+```{r}
+set.seed(123)
+x.id <- createDataPartition(test_C$Purchase, p = 0.5, list = FALSE)[,1]
+valid_C <- test_C |> slice(x.id)
+test_C1 <- test_C |> slice(-x.id)
+```
+
+최적 분류 기준값을 찾기 위해 먼저 모형 `fit`을 사용하여 validation data를 대상으로 확률 예측을 실시한다.
+
+```{r}
+pred_val <- predict(fit, newdata = valid_C, type="response")
+```
+
+최적 분류 기준값을 찾는 작업은 패키지 `pROC`의 함수 `coords()`으로 할 수 있다. 
+기본적인 사용법은 `coords(roc, x = "best", transpose = TRUE)`이다. 
+`roc`는 함수 `roc()`로 생성된 객체이고, `x = "best"`를 지정하면 (민감도+특이도)를 최대화하는 분류 기준값을 찾는다. 
+`transpose`는 결과의 출력 형태에 대한 것으로, `TRUE`를 지정하면 벡터 형태로 결과가 출력된다.
+
+```{r}
+library(pROC)
+thres <- roc(valid_C$Purchase, pred_val) |>
+  coords(x = "best", transpose = TRUE)
+```
+
+```{r}
+thres
+```
+
+(민감도+특이도)를 최대화하는 최적 분류 기준값은 `r thres[[1]]`로 구해졌고,
+validation data를 대상으로는 민감도가 `r thres[[3]]`, 특이도는 `r thres[[2]]`로 계산되었다. 
+
+이제 변경된 분류 기준값을 사용하여 test data를 대상으로 다시 분류 작업을 진행해 보자.
+
+```{r}
+pred_t <- predict(fit, newdata = test_C1, type = "response")
+yhat_t <- factor(if_else(pred_t >= thres[1], "Yes", "No"))
+table_t <- confusionMatrix(reference = test_C1$Purchase, data = yhat_t, positive = "Yes")
+```
+
+분류성능 평가를 위한 결과를 출력해 보자. 
+
+```{r}
+table_t$table
+```
+
+```{r}
+table_t$overall[1]
+```
+
+```{r}
+table_t$byClass[c(1,2,5,7)]
+```
+
+민감도가 크게 향상된 것을 볼 수 있다. 
+민감도가 특히 중요한 분석에서 시도할 수 있는 방법이다. 
+
+
+## 실습 예제
+
+
+
